@@ -279,6 +279,27 @@ schedule_followup(task_id, when, payload) -> schedule_id
 - **Update CLAUDE.md** when architecture changes.
 - **Update DEV_LOG.md** at the end of every meaningful session.
 
+### Development Cycle (enforced — every feature)
+
+```
+1. git checkout main && git pull origin main   ← start from up-to-date main
+2. git checkout -b feat/<feature-name>         ← feature branch
+3. /auto <task description> --mode feature     ← implement + test
+4. Update CLAUDE.md, DEV_LOG.md, agent-orchestrator.md
+5. Commit all changes (code + docs together)
+6. git push && gh pr create                    ← PR at end of EVERY cycle
+   ↓
+   User merges PR
+   ↓
+7. git checkout main && git pull               ← next cycle starts here
+```
+
+**Rules:**
+- Every cycle ends with a PR — no exceptions.
+- Docs (CLAUDE.md, DEV_LOG.md, agent-orchestrator.md) updated in the same commit as the code.
+- Never start a new feature branch until `main` is pulled after the previous PR merges.
+- PR description must include: endpoints added, test count, security notes.
+
 ### LLM Provider Config (change `LLM_MODEL` only — no code change, no rebuild)
 ```
 LLM_MODEL=anthropic/claude-opus-4-6    LLM_API_KEY=sk-ant-...   LLM_MAX_TOKENS=32768
