@@ -52,7 +52,7 @@ Update this file at the end of every meaningful dev session.
 
 ### Next Steps
 - ~~Thread + Message CRUD with cursor pagination~~ ✓ done (PR #3)
-- Orchestrator: step queue + approval flow for A2A messages
+- ~~Orchestrator: step queue + approval flow for A2A messages~~ ✓ done (PR #4)
 - Telegram inbound/outbound connector
 
 ---
@@ -101,7 +101,48 @@ Update this file at the end of every meaningful dev session.
 - 79/79 passing (up from 64 — added 15 new tests)
 
 ### Next Steps
-- Telegram inbound/outbound connector (single bot per agent, webhook)
+- ~~Telegram inbound/outbound connector~~ ✓ in progress (PR #5)
+- Email outbound + basic IMAP inbound polling
+- Role templates: negotiator / sourcing / contractor
+
+---
+
+## 2026-03-01 (Session 4) — Telegram Connector (Inbound + Outbound)
+
+### What Was Done
+
+**Telegram connector** (PR #5, feat/telegram-connector):
+
+**`services/connectors/telegram.py` — full implementation:**
+- `POST /api/connectors/telegram/{agent_id}` — inbound webhook handler:
+  - Always returns `{"ok": true}` (prevents Telegram retry loops on errors)
+  - Agent lookup by UUID path param; graceful 200 on unknown agent
+  - Handles `message` and `edited_message` update types; ignores non-text updates (photos, stickers, etc.)
+  - `_find_or_create_thread(db, agent, chat_id, text)` — finds thread by `(workspace_id, linked_telegram_chat_id)` or creates one titled with the first message
+  - Persists inbound message: `sender_type="external"`, `channel="telegram"`, `metadata_={telegram_message_id, chat_id}`
+  - Creates a Task with the message as objective; `created_by` = workspace owner (`ws.user_id`)
+  - Calls `Planner.decompose()` then `OrchestratorRouter.enqueue_existing_step()` per step → agent queue
+- `send_message(bot_token, chat_id, text, reply_to_message_id?)` — outbound via Telegram Bot API; `parse_mode=HTML`
+- `register_webhook(bot_token, webhook_url)` — calls `setWebhook` for bot setup
+- `delete_webhook(bot_token)` — calls `deleteWebhook` for agent teardown
+- `_resolve_token(agent)` — MVP: raw token from `telegram_bot_token_ref`; production stub for Vault
+
+**`tests/test_connectors.py` — 9 tests, all passing:**
+- Webhook: valid message → ok, unknown agent → ok, non-text → ignored, existing thread reused, new thread created, task dispatched
+- `send_message`: httpx POST verified, `reply_to_message_id` included when provided
+- WebChat broadcast: no-op on empty thread (existing)
+
+### Key Decisions Made
+- Webhook path uses agent UUID (opaque but leaks internal ID); production note in docstring for HMAC-derived path
+- `created_by` on Task set to workspace owner's user_id (FK constraint requires a user; external inbound has no user identity)
+- Thread auto-created per `(workspace_id, chat_id)` pair; title = first 100 chars of message
+- `telegram_bot_token_ref` treated as plaintext MVP token; `_resolve_token()` is the swap point for Vault integration
+- Each inbound Telegram message creates a new Task (MVP); V1 could maintain persistent conversation Task per chat
+
+### Test Count
+- 88/88 passing (up from 79 — added 9 new connector tests)
+
+### Next Steps
 - Email outbound + basic IMAP inbound polling
 - Role templates: negotiator / sourcing / contractor
 

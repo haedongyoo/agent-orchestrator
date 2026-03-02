@@ -325,7 +325,11 @@ Primary use case: run 24/7 negotiation and sourcing workflows (furniture supplie
   - `POST/GET /api/workspaces/{id}/threads`, `GET /api/threads/{id}`
   - `POST /api/threads/{id}/messages`, `GET /api/threads/{id}/messages`
   - Cursor pagination: `(created_at, id)` keyset — stable, tamper-proof base64url encoding
-- [ ] Telegram inbound/outbound (single bot per agent)
+- [x] Telegram inbound/outbound (single bot per agent)
+  - Inbound: POST /api/connectors/telegram/{agent_id} → find/create thread, persist message, create Task, dispatch to agent queue
+  - Outbound: send_message(bot_token, chat_id, text) via httpx → Telegram Bot API
+  - Helpers: register_webhook(), delete_webhook()
+  - Thread auto-created per (workspace_id, chat_id); reused on subsequent messages
 - [ ] Email outbound + basic inbound polling (IMAP)
 - [x] Orchestrator:
   - step queue (dispatch_step → agent.{id} Redis queue via Celery)
