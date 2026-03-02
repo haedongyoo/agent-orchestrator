@@ -327,9 +327,11 @@ Primary use case: run 24/7 negotiation and sourcing workflows (furniture supplie
   - Cursor pagination: `(created_at, id)` keyset — stable, tamper-proof base64url encoding
 - [ ] Telegram inbound/outbound (single bot per agent)
 - [ ] Email outbound + basic inbound polling (IMAP)
-- [ ] Orchestrator:
-  - step queue
-  - approval flow for agent-to-agent messages
+- [x] Orchestrator:
+  - step queue (dispatch_step → agent.{id} Redis queue via Celery)
+  - A2A approval gating (policy.py queries approvals table; scope-checked by agent pair, thread, duration)
+  - task status state machine (step_results.py updates task done/failed when all steps terminal)
+  - task CRUD endpoints: POST/GET /tasks, GET /tasks/{id}/steps, POST /tasks/{id}/cancel
 - [ ] Provide 2–3 role templates (negotiator/sourcing/contractor)
 
 ### 9.2 V1

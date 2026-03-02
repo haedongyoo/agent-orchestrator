@@ -51,9 +51,59 @@ Update this file at the end of every meaningful dev session.
 - `allowed_tools` allowlist maintained in router layer (not model) — single authoritative source
 
 ### Next Steps
-- Thread + Message CRUD with cursor pagination
+- ~~Thread + Message CRUD with cursor pagination~~ ✓ done (PR #3)
 - Orchestrator: step queue + approval flow for A2A messages
 - Telegram inbound/outbound connector
+
+---
+
+## 2026-03-01 (Session 3) — Orchestrator Step Queue + A2A Approval Gating
+
+### What Was Done
+
+**Orchestrator step queue + A2A approval flow** (PR #4, feat/orchestrator-step-queue):
+
+**`policy.py` — Real A2A approval check:**
+- `_check_a2a()` now queries the `approvals` table for active approved A2A permissions
+- Scope validation: agent pair match, thread scope, duration window (expired approvals are re-blocked)
+- Falls back to creating a pending approval + returning `a2a_not_approved` if no active approval found
+- 9 tests covering: blocked by default, creates approval row, allowed with active approval, expired approval blocks, wrong-thread blocks, wrong-agent-pair blocks
+
+**`router.py` — dispatch_step + route enhancement:**
+- `dispatch_step(task_id, agent_id, step_type, content, workspace_id)` → creates `TaskStep` with explicit UUID (available before DB flush) + calls `_enqueue_to_agent()`
+- `enqueue_existing_step(step, workspace_id)` → enqueues an already-persisted step (used by `create_task`)
+- `_enqueue_to_agent(...)` → lazy `celery_app.send_task()` push to `agent.{agent_id}` queue; lazy import keeps unit tests broker-free
+- `route()` now dispatches a "message" step when receiver_type=="agent" and task_id is provided; returns `step_id` in result
+- 11 tests covering: blocked route, approval_id pass-through, audit log, step dispatch with/without task_id, non-agent routes, dispatch_step internals
+
+**`tasks.py` — Full implementation:**
+- `POST /api/threads/{thread_id}/tasks` → create Task (queued) → `Planner.decompose()` → `enqueue_existing_step()` per step → task becomes "running"; auth + ownership-scoped
+- `GET /api/tasks/{task_id}` → get task with ownership check
+- `GET /api/tasks/{task_id}/steps` → list steps ordered by created_at
+- `POST /api/tasks/{task_id}/cancel` → mark task + all queued/running steps as "failed" (idempotent if already terminal)
+- Ownership chain: task → workspace → user_id == current_user.id; returns 404 to avoid leaking
+
+**`step_results.py` — Task status update:**
+- After a step result is processed, queries all sibling steps for the task
+- If all steps are terminal (done/failed): updates task.status = "done" or "failed"
+- Correctly applies the in-memory status change before evaluating siblings
+
+**`llm_configs.py` — Bug fix:**
+- Removed duplicate `from __future__ import annotations` (caused SyntaxError at import time)
+
+### Key Decisions Made
+- `TaskStep.id` explicitly generated with `uuid.uuid4()` before flush (same pattern as `Approval`) — ensures id is available for Celery payload before DB round-trip
+- `_enqueue_to_agent()` is a method (not a module function) — easy to mock in tests with `patch.object(orch, "_enqueue_to_agent")`
+- `enqueue_existing_step()` decouples step creation (planner) from dispatch — planner creates steps, router enqueues them
+- Tasks without available agents stay in "queued" status; Planner.decompose() raises ValueError if no agents — handled gracefully
+
+### Test Count
+- 79/79 passing (up from 64 — added 15 new tests)
+
+### Next Steps
+- Telegram inbound/outbound connector (single bot per agent, webhook)
+- Email outbound + basic IMAP inbound polling
+- Role templates: negotiator / sourcing / contractor
 
 ---
 

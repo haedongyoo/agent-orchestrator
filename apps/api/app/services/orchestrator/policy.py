@@ -61,9 +61,46 @@ class PolicyEngine:
         return PolicyDecision(allowed=True, reason="default_allow")
 
     async def _check_a2a(self, req: RouteRequest) -> PolicyDecision:
-        """Look up active approval for this A2A pair/thread."""
-        # TODO: query approvals table for matching scope
-        # For now: always block and create approval request
+        """
+        Check for an active approved A2A permission matching this agent pair + thread.
+        Blocks and creates a pending Approval if none found.
+        """
+        from app.models.approval import Approval
+        from sqlalchemy import select
+
+        result = await self.db.execute(
+            select(Approval).where(
+                Approval.workspace_id == req.workspace_id,
+                Approval.approval_type == "enable_agent_chat",
+                Approval.status == "approved",
+            )
+        )
+        approvals = result.scalars().all()
+
+        now = datetime.now(timezone.utc)
+        for approval in approvals:
+            scope = approval.scope or {}
+            agents_in_scope = scope.get("agents", [])
+
+            # Both sender and receiver must be in the approved agent set
+            if str(req.sender_id) not in agents_in_scope or req.receiver_id not in agents_in_scope:
+                continue
+
+            # If approval is scoped to a thread, it must match
+            if "thread_id" in scope and scope["thread_id"] != str(req.thread_id):
+                continue
+
+            # If a duration window is set, verify it has not expired
+            if "duration_seconds" in scope and approval.decided_at is not None:
+                decided = approval.decided_at
+                if decided.tzinfo is None:
+                    decided = decided.replace(tzinfo=timezone.utc)
+                if (now - decided).total_seconds() > scope["duration_seconds"]:
+                    continue
+
+            return PolicyDecision(allowed=True, reason="a2a_approved")
+
+        # No active approval found — block and create a pending request
         approval_id = await self._create_approval_request(
             req,
             approval_type="enable_agent_chat",

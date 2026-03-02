@@ -247,9 +247,15 @@ schedule_followup(task_id, when, payload) -> schedule_id
   - `channel` validated against allowlist: `web|telegram|email|system`
   - `sender_type` hardcoded to `user` for user-posted messages (agent writes go through orchestrator)
   - Thread ownership verified via workspace `user_id` → 404 on non-owner access
+- [x] **Orchestrator: step queue + A2A approval gating**
+  - `dispatch_step()` creates `TaskStep` + pushes to `agent.{id}` Celery queue
+  - `_check_a2a()` queries `approvals` table; scope-validates (agent pair, thread, duration window)
+  - `route()` dispatches steps for allowed user→agent messages with task_id
+  - Task CRUD: `POST /api/threads/{id}/tasks`, `GET /api/tasks/{id}`, `GET /api/tasks/{id}/steps`, `POST /api/tasks/{id}/cancel`
+  - `step_results.py` updates task status to done/failed when all steps are terminal
+  - 79/79 tests passing
 - [ ] Telegram inbound/outbound (single bot per agent)
 - [ ] Email outbound + basic inbound polling (IMAP)
-- [ ] Orchestrator: step queue + approval flow for A2A messages
 - [ ] 2–3 role templates (negotiator / sourcing / contractor)
 
 ### Phase 2 — V1
