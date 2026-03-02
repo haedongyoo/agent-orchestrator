@@ -314,8 +314,13 @@ Primary use case: run 24/7 negotiation and sourcing workflows (furniture supplie
   - `/api/auth/register`, `/api/auth/login`, `/api/auth/me`
   - `/api/auth/sso/{provider}`, `/api/auth/sso/{provider}/callback`
   - Alembic migration: all 13 tables + indexes in FK-dependency order
-- [ ] Workspace CRUD
-- [ ] Agent CRUD + role prompt
+- [x] Workspace CRUD (2026-03-01)
+  - `POST/GET/PUT /api/workspaces`, shared email account `POST/PUT`
+  - Workspace access owner-scoped; `credentials_ref` write-only
+- [x] Agent CRUD + role prompt (2026-03-01)
+  - `POST/GET/PUT/DELETE /api/workspaces/{id}/agents`
+  - `allowed_tools` allowlist: send_email, read_email_inbox, send_telegram, post_web_message, request_approval, upsert_vendor, schedule_followup
+  - Container management endpoints (start/stop) with ownership enforcement
 - [ ] Web thread chat + message persistence
 - [ ] Telegram inbound/outbound (single bot per agent)
 - [ ] Email outbound + basic inbound polling (IMAP)
@@ -332,6 +337,17 @@ Primary use case: run 24/7 negotiation and sourcing workflows (furniture supplie
 - Observability: traces, step-level debugging, replay
 - Policy hardening:
   - always require approval for contract/commitment/payment language
+
+---
+
+## 9.4) LLM Subscription (Updated 2026-03-01)
+
+**Provider**: Anthropic API
+**Model**: `claude-opus-4-6` (`anthropic/claude-opus-4-6` via LiteLLM)
+**Context**: 200K input tokens, 32K output tokens
+**`LLM_MAX_TOKENS`**: `32768` (updated from `4096`)
+
+Set via env vars — no code change required to switch provider. See `.env.example`.
 
 ---
 

@@ -236,8 +236,12 @@ schedule_followup(task_id, when, payload) -> schedule_id
   - JWT HS256, bcrypt passwords, signed state token for SSO CSRF protection
   - User model extended: `sso_provider`, `sso_sub` with unique constraint
 - [x] **Alembic initial migration** — all 13 tables in `versions/001_initial_schema.py`
-- [ ] Workspace CRUD
-- [ ] Agent CRUD + role prompt
+- [x] **Workspace CRUD** — `POST/GET/PUT /api/workspaces`, shared email account management
+- [x] **Agent CRUD + role prompt** — `POST/GET/PUT/DELETE /api/workspaces/{id}/agents`
+  - `allowed_tools` validated against strict allowlist (7 tools)
+  - `telegram_bot_token_ref` write-only (never returned in responses)
+  - Partial update (PUT) — only supplied fields changed
+  - Container management endpoints (start/stop) with ownership checks
 - [ ] Web thread chat + message persistence
 - [ ] Telegram inbound/outbound (single bot per agent)
 - [ ] Email outbound + basic inbound polling (IMAP)
@@ -273,12 +277,15 @@ schedule_followup(task_id, when, payload) -> schedule_id
 
 ### LLM Provider Config (change `LLM_MODEL` only — no code change, no rebuild)
 ```
-LLM_MODEL=anthropic/claude-opus-4-6    LLM_API_KEY=sk-ant-...
+LLM_MODEL=anthropic/claude-opus-4-6    LLM_API_KEY=sk-ant-...   LLM_MAX_TOKENS=32768
 LLM_MODEL=gpt-4o                        LLM_API_KEY=sk-...
 LLM_MODEL=gemini/gemini-1.5-pro         LLM_API_KEY=AIza...
 LLM_MODEL=groq/llama-3.3-70b-versatile  LLM_API_KEY=gsk_...
 LLM_MODEL=ollama/llama3.3               LLM_API_BASE=http://ollama:11434
 ```
+
+**Active subscription**: Anthropic API — `claude-opus-4-6` (200K input context, 32K output tokens).
+`LLM_MAX_TOKENS` default updated to `32768` in agent runner and `.env.example`.
 
 ## Container Rules (Enforced)
 

@@ -5,6 +5,47 @@ Update this file at the end of every meaningful dev session.
 
 ---
 
+## 2026-03-01 (Session 2) — Workspace CRUD, Agent CRUD, Subscription Update
+
+### What Was Done
+
+**Workspace CRUD** (PR #1, merged):
+- `POST /api/workspaces` — create workspace → 201
+- `GET /api/workspaces/{id}` — get workspace → 200 / 404
+- `PUT /api/workspaces/{id}` — partial update → 200 / 404
+- `POST /api/workspaces/{id}/shared-email` — add email account → 201
+- `PUT /api/workspaces/{id}/shared-email/{eid}` — update email account → 200
+- `credentials_ref` write-only; `provider_type` validated against allowlist (`imap|gmail|graph`)
+- 15 tests, 32/32 total passing
+
+**Agent CRUD + role prompt** (PR #2, merged):
+- `POST /api/workspaces/{id}/agents` — create agent → 201
+- `GET /api/workspaces/{id}/agents` — list agents → 200 []
+- `PUT /api/workspaces/{id}/agents/{aid}` — partial update → 200
+- `DELETE /api/workspaces/{id}/agents/{aid}` — delete → 204
+- `allowed_tools` validated against strict allowlist (7 tools — no arbitrary tool grants)
+- `telegram_bot_token_ref` write-only (vault ref never returned)
+- `ContainerManager` lazily imported → unit tests stay Docker-free
+- Container management endpoints (start/stop) updated with ownership checks
+- 15 tests, 47/47 total passing
+
+**Anthropic subscription updated**:
+- Upgraded to Anthropic API plan with full `claude-opus-4-6` access
+- `LLM_MAX_TOKENS` updated from `4096` → `32768` (Opus 4.6 supports up to 32K output)
+- Updated in: `apps/agent/agent_runtime/runner.py` default + `.env.example`
+
+### Key Decisions Made
+- POST-PR workflow established: merge → `git checkout main && git pull` → new feature branch → `/auto --mode feature`
+- All mutating endpoints require Bearer JWT + workspace owner check (returns 404 not 403 to avoid leaking resource existence)
+- `allowed_tools` allowlist maintained in router layer (not model) — single authoritative source
+
+### Next Steps
+- Thread + Message CRUD with cursor pagination
+- Orchestrator: step queue + approval flow for A2A messages
+- Telegram inbound/outbound connector
+
+---
+
 ## 2026-02-28 — Project Initialization
 
 ### What Was Done

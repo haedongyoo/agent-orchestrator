@@ -41,7 +41,7 @@ log = structlog.get_logger()
 LLM_MODEL    = os.getenv("LLM_MODEL",      "anthropic/claude-opus-4-6")
 LLM_API_BASE = os.getenv("LLM_API_BASE")   # required for Ollama / Azure custom endpoint
 LLM_API_KEY  = os.getenv("LLM_API_KEY")    # provider API key (LiteLLM also reads OPENAI_API_KEY etc.)
-LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "4096"))
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "32768"))  # claude-opus-4-6 supports up to 32K output tokens
 
 # ── Rate-limit retry config ────────────────────────────────────────────────────
 DEFAULT_RETRY_AFTER  = 60    # seconds to wait when retry-after header is absent
