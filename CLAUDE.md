@@ -242,7 +242,11 @@ schedule_followup(task_id, when, payload) -> schedule_id
   - `telegram_bot_token_ref` write-only (never returned in responses)
   - Partial update (PUT) — only supplied fields changed
   - Container management endpoints (start/stop) with ownership checks
-- [ ] Web thread chat + message persistence
+- [x] **Thread + Message CRUD** — `POST/GET /api/workspaces/{id}/threads`, `GET /api/threads/{id}`, `POST/GET /api/threads/{id}/messages`
+  - Cursor pagination: opaque base64url `(created_at, id)` cursor — stable, tamper-proof
+  - `channel` validated against allowlist: `web|telegram|email|system`
+  - `sender_type` hardcoded to `user` for user-posted messages (agent writes go through orchestrator)
+  - Thread ownership verified via workspace `user_id` → 404 on non-owner access
 - [ ] Telegram inbound/outbound (single bot per agent)
 - [ ] Email outbound + basic inbound polling (IMAP)
 - [ ] Orchestrator: step queue + approval flow for A2A messages

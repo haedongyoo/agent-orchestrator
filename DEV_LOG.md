@@ -29,6 +29,17 @@ Update this file at the end of every meaningful dev session.
 - Container management endpoints (start/stop) updated with ownership checks
 - 15 tests, 47/47 total passing
 
+**Thread + Message CRUD** (PR #3, feat/thread-message-crud):
+- `POST /api/workspaces/{id}/threads` — create thread → 201
+- `GET /api/threads/{id}` — get thread with ownership check → 200 / 404
+- `POST /api/threads/{id}/messages` — post user message → 201
+- `GET /api/threads/{id}/messages` — cursor-paginated list → 200 MessagePage
+  - Cursor = base64url(JSON{created_at, id}) — opaque, tamper-proof, stable
+  - `next_cursor` set only when `len(items) == limit`; `null` at end of results
+- `channel` validated: `web|telegram|email|system`; invalid → 422
+- `sender_type` hardcoded to `"user"` for user-posted messages
+- 17 tests, 64/64 total passing
+
 **Anthropic subscription updated**:
 - Upgraded to Anthropic API plan with full `claude-opus-4-6` access
 - `LLM_MAX_TOKENS` updated from `4096` → `32768` (Opus 4.6 supports up to 32K output)
