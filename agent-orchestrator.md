@@ -321,7 +321,10 @@ Primary use case: run 24/7 negotiation and sourcing workflows (furniture supplie
   - `POST/GET/PUT/DELETE /api/workspaces/{id}/agents`
   - `allowed_tools` allowlist: send_email, read_email_inbox, send_telegram, post_web_message, request_approval, upsert_vendor, schedule_followup
   - Container management endpoints (start/stop) with ownership enforcement
-- [ ] Web thread chat + message persistence
+- [x] Web thread chat + message persistence (2026-03-01)
+  - `POST/GET /api/workspaces/{id}/threads`, `GET /api/threads/{id}`
+  - `POST /api/threads/{id}/messages`, `GET /api/threads/{id}/messages`
+  - Cursor pagination: `(created_at, id)` keyset — stable, tamper-proof base64url encoding
 - [ ] Telegram inbound/outbound (single bot per agent)
 - [ ] Email outbound + basic inbound polling (IMAP)
 - [ ] Orchestrator:
