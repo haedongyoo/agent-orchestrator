@@ -2,7 +2,7 @@
 #
 # Network topology (security-critical):
 #
-#   backend-net  →  api, orchestrator-worker, postgres, redis
+#   backend-net  →  api, orchestrator-worker, orchestrator-beat, postgres, redis
 #   agent-net    →  agent-worker-*, redis
 #
 #   Agent containers are on agent-net ONLY.
@@ -10,9 +10,14 @@
 #   They CANNOT reach Postgres or the API service by hostname.
 #   Agents communicate with the orchestrator exclusively via Redis queues.
 #
-# Scaling agents:
-#   docker compose up --scale agent-worker=3
-#   (each worker instance needs its own AGENT_ID — see comments below)
+# Quick start (development):
+#   1. cp .env.example .env  && edit .env
+#   2. make build
+#   3. make up
+#   4. make migrate           # run DB migrations once
+#   5. open http://localhost:8000/docs
+#
+# Production: use docker-compose.prod.yml (see Makefile `prod-*` targets)
 
 services:
 
@@ -70,7 +75,7 @@ services:
       APP_ENV: development
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
     volumes:
-      - ./apps/api/app:/app/app   # hot-reload in dev
+      - ./apps/api/app:/app/app   # hot-reload in dev (omitted in prod)
     networks:
       - backend-net
     depends_on:
@@ -80,6 +85,12 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     command: >
       uvicorn app.main:app
         --host 0.0.0.0
@@ -132,6 +143,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
     volumes:
       - ./apps/api/app:/app/app
     networks:
@@ -175,22 +187,17 @@ services:
       LLM_MODEL:      ${LLM_MODEL:-anthropic/claude-opus-4-6}
       LLM_API_KEY:    ${LLM_API_KEY:-}
       LLM_API_BASE:   ${LLM_API_BASE:-}
-      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-4096}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-32768}
     networks:
       - agent-net     # ONLY — no backend-net, no postgres access
     depends_on:
       redis:
         condition: service_healthy
-    # Each agent worker listens on its own queue: agent.<agent_id>
-    command: >
-      celery -A agent_runtime.main worker
-        --loglevel=info
-        --queues=agent.${AGENT_ID:-placeholder-set-agent-id}
-        --concurrency=1
+    # AGENT_ID is expanded at runtime via shell form CMD in the Dockerfile
 
   # ── One-shot migration runner ──────────────────────────────────────────────
   #
-  # Run with: docker compose run --rm migrate
+  # Run with: make migrate   (or: docker compose --profile tools run --rm migrate)
   #
   migrate:
     build:

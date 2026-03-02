@@ -1,5 +1,7 @@
 .PHONY: help up down restart build logs logs-api logs-worker logs-agent \
-        migrate shell shell-agent test clean ps scale-agents
+        migrate migrate-down migrate-history shell shell-agent \
+        test test-policy scale-agents clean clean-images \
+        prod-build prod-up prod-down prod-migrate prod-logs
 
 # ── Colours ────────────────────────────────────────────────────────────────────
 CYAN  := \033[0;36m
@@ -7,20 +9,20 @@ RESET := \033[0m
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "$(CYAN)%-20s$(RESET) %s\n", $$1, $$2}'
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "$(CYAN)%-22s$(RESET) %s\n", $$1, $$2}'
 
-# ── Docker Compose ─────────────────────────────────────────────────────────────
+# ── Development ─────────────────────────────────────────────────────────────────
 
-up:  ## Start all services (detached)
+up:  ## Start all dev services (detached)
 	docker compose up -d
 
-down:  ## Stop and remove containers
+down:  ## Stop and remove dev containers
 	docker compose down
 
-restart:  ## Restart all services
+restart:  ## Restart all dev services
 	docker compose restart
 
-build:  ## (Re)build all images
+build:  ## (Re)build all dev images
 	docker compose build
 
 ps:  ## Show running containers
@@ -68,16 +70,33 @@ shell-agent:  ## Open a shell in the agent-worker container
 test:  ## Run the full test suite inside the api container
 	docker compose run --rm \
 		-e DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/openclaw \
-		api pytest apps/api/app/tests/ -v
+		api pytest app/tests/ -v
 
 test-policy:  ## Run policy engine tests only (fastest safety check)
-	docker compose run --rm api pytest apps/api/app/tests/test_policy.py -v
+	docker compose run --rm api pytest app/tests/test_policy.py -v
 
 # ── Agent scaling ──────────────────────────────────────────────────────────────
 
 scale-agents:  ## Scale agent workers: make scale-agents N=3
 	@if [ -z "$(N)" ]; then echo "Usage: make scale-agents N=<count>"; exit 1; fi
 	docker compose up -d --scale agent-worker=$(N) agent-worker
+
+# ── Production ─────────────────────────────────────────────────────────────────
+
+prod-build:  ## Build production images (requires IMAGE_TAG env var or defaults to latest)
+	docker compose -f docker-compose.prod.yml build
+
+prod-up:  ## Start production stack (detached)
+	docker compose -f docker-compose.prod.yml up -d
+
+prod-down:  ## Stop production stack
+	docker compose -f docker-compose.prod.yml down
+
+prod-migrate:  ## Run Alembic migrations against production DB
+	docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
+
+prod-logs:  ## Tail production API + worker logs
+	docker compose -f docker-compose.prod.yml logs -f api orchestrator-worker orchestrator-beat
 
 # ── Cleanup ────────────────────────────────────────────────────────────────────
 

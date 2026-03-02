@@ -30,11 +30,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Agents run as a non-root user for an additional layer of isolation
-RUN useradd --create-home --shell /bin/bash agent
+# Agents run as a non-root user for an additional layer of isolation.
+# chown -R ensures the agent user can write to /app (e.g. Celery temp files).
+RUN useradd --create-home --shell /bin/bash agent \
+    && chown -R agent:agent /app
 USER agent
 
-CMD ["celery", "-A", "agent_runtime.main", "worker", \
-     "--loglevel=info", \
-     "--queues=agent.{AGENT_ID}", \
-     "--concurrency=1"]
+# Use shell form (not exec form) so $AGENT_ID is expanded from the environment
+# at container startup. Exec form ["celery", ..., "agent.{AGENT_ID}"] would
+# treat {AGENT_ID} as a literal string — not a shell variable.
+CMD sh -c "celery -A agent_runtime.main worker \
+    --loglevel=info \
+    --queues=agent.${AGENT_ID:-placeholder-set-agent-id} \
+    --concurrency=1"

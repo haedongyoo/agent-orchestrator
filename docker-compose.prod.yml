@@ -1,0 +1,198 @@
+# OpenClaw Agent Orchestrator — Docker Compose (production)
+#
+# Differences from docker-compose.yml (dev):
+#   - No hot-reload volume mounts (image ships final code)
+#   - No exposed Postgres / Redis ports (DB not reachable from host)
+#   - Uvicorn runs with --workers (multi-process) instead of --reload
+#   - APP_ENV=production, LOG_LEVEL=info
+#   - restart: always (tolerates host reboots)
+#
+# Quick start (production):
+#   1. cp .env.example .env && fill in real secrets
+#   2. make prod-build
+#   3. make prod-up
+#   4. make prod-migrate
+#   5. open https://your-domain.com/docs  (put nginx/Caddy in front)
+#
+# For the agent-net ONLY security guarantee, see docker-compose.yml comments.
+
+services:
+
+  # ── Infrastructure ─────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: openclaw
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d openclaw"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # No port exposure — Postgres is internal-only in production.
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend-net   # orchestrator reads/writes results
+      - agent-net     # agents pick up tasks and post results
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # No port exposure — Redis is internal-only in production.
+
+  # ── API + Orchestrator (backend-net) ───────────────────────────────────────
+
+  api:
+    image: openclaw/api:${IMAGE_TAG:-latest}
+    restart: always
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/openclaw
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/1
+      APP_ENV: production
+      LOG_LEVEL: info
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    # No volume mount — production image ships final code (no hot-reload).
+    networks:
+      - backend-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"   # Put nginx/Caddy/Traefik in front with TLS
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    command: >
+      uvicorn app.main:app
+        --host 0.0.0.0
+        --port 8000
+        --workers 4
+
+  orchestrator-worker:
+    image: openclaw/api:${IMAGE_TAG:-latest}
+    restart: always
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/openclaw
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/1
+      APP_ENV: production
+      LOG_LEVEL: info
+      DOCKER_AGENT_NETWORK: agent-orchestrator_agent-net
+      DOCKER_AGENT_IMAGE: openclaw/agent-runtime:${IMAGE_TAG:-latest}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    volumes:
+      # Docker socket: orchestrator spawns/stops agent containers.
+      # Production alternative: Docker API over TLS with a restricted socket proxy.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - backend-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A app.worker worker
+        --loglevel=info
+        --queues=orchestrator
+        --concurrency=4
+
+  orchestrator-beat:
+    image: openclaw/api:${IMAGE_TAG:-latest}
+    restart: always
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/openclaw
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/1
+      APP_ENV: production
+      LOG_LEVEL: info
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    networks:
+      - backend-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A app.worker beat
+        --loglevel=info
+        --scheduler celery.beat.PersistentScheduler
+
+  # ── Agent Runtime (agent-net ONLY) ────────────────────────────────────────
+  #
+  # SECURITY: Do NOT add backend-net here. Ever.
+  # Agent containers are spawned dynamically by the orchestrator.
+  # This static entry is the base image reference only — scale with:
+  #   docker compose -f docker-compose.prod.yml up -d --scale agent-worker=<N>
+  #
+  agent-worker:
+    image: openclaw/agent-runtime:${IMAGE_TAG:-latest}
+    restart: always
+    env_file: .env
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      AGENT_ID: ${AGENT_ID:-placeholder-set-agent-id}
+      LLM_MODEL:      ${LLM_MODEL:-anthropic/claude-opus-4-6}
+      LLM_API_KEY:    ${LLM_API_KEY:-}
+      LLM_API_BASE:   ${LLM_API_BASE:-}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-32768}
+    networks:
+      - agent-net     # ONLY — no backend-net, no postgres access
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ── One-shot migration runner ──────────────────────────────────────────────
+
+  migrate:
+    image: openclaw/api:${IMAGE_TAG:-latest}
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/openclaw
+    networks:
+      - backend-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: alembic upgrade head
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  backend-net:
+    driver: bridge
+    internal: false
+  agent-net:
+    driver: bridge
+    internal: false   # agents need outbound for SMTP/Telegram Bot API
