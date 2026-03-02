@@ -1,16 +1,24 @@
+from typing import Optional
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Boolean, ForeignKey, DateTime
+from sqlalchemy import String, Boolean, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, utcnow
 
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        # Prevent duplicate SSO identities; NULLs are distinct (email/password users unaffected)
+        UniqueConstraint("sso_provider", "sso_sub", name="uq_users_sso_identity"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # SSO fields — set for OAuth2 users; NULL for email/password users
+    sso_provider: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)   # google | github | microsoft
+    sso_sub: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)        # stable user ID from provider
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -38,7 +46,7 @@ class UserChannel(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workspaces.id"), nullable=False, unique=True)
-    user_telegram_chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_telegram_chat_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     web_chat_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
@@ -51,6 +59,6 @@ class SharedEmailAccount(Base):
     provider_type: Mapped[str] = mapped_column(String(32), nullable=False)  # imap | gmail | graph
     credentials_ref: Mapped[str] = mapped_column(String(512), nullable=False)  # vault/kms reference — never plaintext
     from_alias: Mapped[str] = mapped_column(String(255), nullable=False)
-    signature_template: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    signature_template: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

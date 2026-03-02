@@ -230,7 +230,13 @@ schedule_followup(task_id, when, payload) -> schedule_id
 ## Implementation Phases
 
 ### Phase 1 — MVP
-- [ ] Auth + workspace CRUD
+- [x] **Auth — email/password + SSO (Google, GitHub, Microsoft)**
+  - `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`
+  - `GET /api/auth/sso/{provider}`, `GET /api/auth/sso/{provider}/callback`
+  - JWT HS256, bcrypt passwords, signed state token for SSO CSRF protection
+  - User model extended: `sso_provider`, `sso_sub` with unique constraint
+- [x] **Alembic initial migration** — all 13 tables in `versions/001_initial_schema.py`
+- [ ] Workspace CRUD
 - [ ] Agent CRUD + role prompt
 - [ ] Web thread chat + message persistence
 - [ ] Telegram inbound/outbound (single bot per agent)
@@ -283,6 +289,29 @@ LLM_MODEL=ollama/llama3.3               LLM_API_BASE=http://ollama:11434
 - **Agents never hold credentials** — they post requests to Redis; orchestrator executes with Vault-resolved creds.
 - **Scale with**: `make scale-agents N=3` or orchestrator Docker API calls.
 
+## Auth Architecture (Implemented)
+
+```
+POST /api/auth/register    → email + password (min 8 chars) → JWT
+POST /api/auth/login       → OAuth2PasswordRequestForm (username=email) → JWT
+GET  /api/auth/me          → Bearer JWT → UserResponse
+GET  /api/auth/sso/{p}     → redirect to Google/GitHub/Microsoft OAuth2 page
+GET  /api/auth/sso/{p}/callback → exchange code → find-or-create User → JWT
+```
+
+SSO providers: `google`, `github`, `microsoft`
+SSO state: signed JWT (HS256, 10-min TTL) — no Redis needed
+Link behavior: if SSO email matches existing password account, SSO identity is linked
+
+## SSO Config (env vars)
+```
+SSO_REDIRECT_BASE_URL=https://your-domain.com
+GOOGLE_CLIENT_ID=...          GOOGLE_CLIENT_SECRET=...
+GITHUB_CLIENT_ID=...          GITHUB_CLIENT_SECRET=...
+MICROSOFT_CLIENT_ID=...       MICROSOFT_CLIENT_SECRET=...
+MICROSOFT_TENANT_ID=common    # or your org tenant ID
+```
+
 ## Working Rules for Claude
 
 - **Always consult `agent-orchestrator.md`** when uncertain about architecture or requirements.
@@ -290,5 +319,6 @@ LLM_MODEL=ollama/llama3.3               LLM_API_BASE=http://ollama:11434
 - **Update `DEV_LOG.md`** after every meaningful development session — what was built, decisions made, what's next.
 - Prefer FastAPI + Postgres patterns unless user specifies otherwise.
 - Never store secrets in plaintext — always use `credentials_ref` pattern.
-- Write tests in `apps/api/app/tests/` — prioritize `test_policy.py` and `test_orchestrator.py`.
+- Write tests in `apps/api/app/tests/` — prioritize `test_policy.py`, `test_auth.py`, `test_orchestrator.py`.
 - Keep the A2A policy enforcement in `services/orchestrator/policy.py` — do not duplicate it elsewhere.
+- Use `Optional[X]` instead of `X | None` in SQLAlchemy `Mapped` columns for Python 3.9 compat.

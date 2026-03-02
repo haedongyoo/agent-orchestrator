@@ -89,7 +89,10 @@ class PolicyEngine:
         """Persist a pending Approval row and return its id."""
         from app.models.approval import Approval
 
+        # Explicitly generate id so it is available before DB flush
+        approval_id = uuid.uuid4()
         approval = Approval(
+            id=approval_id,
             workspace_id=req.workspace_id,
             thread_id=req.thread_id,
             task_id=req.task_id,
@@ -103,4 +106,4 @@ class PolicyEngine:
         )
         self.db.add(approval)
         await self.db.flush()
-        return approval.id
+        return approval_id

@@ -1,3 +1,4 @@
+from typing import Optional
 import uuid
 from datetime import datetime
 from sqlalchemy import String, ForeignKey, DateTime
@@ -12,8 +13,8 @@ class Thread(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
     title: Mapped[str] = mapped_column(String(512), nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="open")  # open | closed
-    linked_telegram_chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    linked_email_thread_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    linked_telegram_chat_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    linked_email_thread_id: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

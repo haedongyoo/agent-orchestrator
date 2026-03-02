@@ -1,3 +1,4 @@
+from typing import Optional
 import uuid
 from datetime import datetime
 from sqlalchemy import String, Text, ForeignKey, DateTime, JSON
@@ -20,14 +21,14 @@ class Approval(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workspaces.id"), nullable=False)
-    thread_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("threads.id"), nullable=True)
-    task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id"), nullable=True)
+    thread_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("threads.id"), nullable=True)
+    task_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("tasks.id"), nullable=True)
     approval_type: Mapped[str] = mapped_column(String(64), nullable=False)
     requested_by: Mapped[uuid.UUID] = mapped_column(nullable=False)  # agent_id or system
-    approved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    approved_by: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id"), nullable=True)
     # scope: { agents: [...], duration_seconds: N, recipients: [...], thread_limit: T, content_types: [...] }
     scope: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(32), default="pending")
-    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    decided_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

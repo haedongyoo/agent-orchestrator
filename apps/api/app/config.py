@@ -14,10 +14,24 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/openclaw"
 
-    # Auth
+    # Auth (JWT)
     secret_key: str = "change-me"
     access_token_expire_minutes: int = 60
     algorithm: str = "HS256"
+
+    # SSO — OAuth2 / OIDC providers
+    # Set the base URL that providers redirect back to (must match provider console setting)
+    sso_redirect_base_url: str = "http://localhost:8000"
+    # Google OAuth2 — https://console.cloud.google.com/apis/credentials
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    # GitHub OAuth App — https://github.com/settings/developers
+    github_client_id: str = ""
+    github_client_secret: str = ""
+    # Microsoft / Entra ID — https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps
+    microsoft_client_id: str = ""
+    microsoft_client_secret: str = ""
+    microsoft_tenant_id: str = "common"  # "common" = multi-tenant; set to org tenant for single-tenant
 
     # Redis / Celery
     redis_url: str = "redis://localhost:6379/0"

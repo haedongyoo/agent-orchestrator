@@ -1,3 +1,4 @@
+from typing import Optional
 """
 LLMConfig — per-workspace and per-agent LLM provider configuration.
 
@@ -33,7 +34,7 @@ class LLMConfig(Base):
     )
     # NULL  → workspace-level default config
     # SET   → per-agent override (takes precedence over workspace default)
-    agent_id: Mapped[uuid.UUID | None] = mapped_column(
+    agent_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("agents.id", ondelete="CASCADE"),
         nullable=True,
     )
@@ -44,11 +45,11 @@ class LLMConfig(Base):
 
     # API key — Fernet-encrypted, base64-encoded.  NULL for providers that
     # don't require a key (e.g. Ollama) or when using IAM/instance roles (Bedrock).
-    api_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    api_key_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Custom base URL — required for Ollama, Azure OpenAI custom deployments, etc.
     # Stored in plaintext (not a secret).
-    api_base_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    api_base_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
 
     # Generation parameters
     max_tokens: Mapped[int] = mapped_column(Integer, default=4096)

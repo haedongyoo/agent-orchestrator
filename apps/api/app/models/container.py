@@ -1,3 +1,4 @@
+from typing import Optional
 """
 AgentContainer — persistent registry of Docker container state per agent.
 
@@ -36,19 +37,19 @@ class AgentContainer(Base):
     )
 
     # Docker identifiers — set on first spawn, updated on restart
-    container_id: Mapped[str | None] = mapped_column(String(64), nullable=True)   # 64-char Docker hash
-    container_name: Mapped[str | None] = mapped_column(String(255), nullable=True) # openclaw-agent-{agent_id}
-    image: Mapped[str | None] = mapped_column(String(255), nullable=True)           # image tag used
+    container_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)   # 64-char Docker hash
+    container_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True) # openclaw-agent-{agent_id}
+    image: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)           # image tag used
 
     # Lifecycle
     status: Mapped[str] = mapped_column(String(32), default="unknown")
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    stopped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_status_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    stopped_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_status_check_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Crash tracking
-    exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    error_message: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    exit_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
     restart_count: Mapped[int] = mapped_column(Integer, default=0)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -1,3 +1,4 @@
+from typing import Optional
 import uuid
 from datetime import datetime
 from sqlalchemy import String, Boolean, Integer, ForeignKey, DateTime, JSON
@@ -13,7 +14,7 @@ class Agent(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     role_prompt: Mapped[str] = mapped_column(String(8192), nullable=False)
     allowed_tools: Mapped[list] = mapped_column(JSON, default=list)  # e.g. ["send_email", "send_telegram"]
-    telegram_bot_token_ref: Mapped[str | None] = mapped_column(String(512), nullable=True)  # vault/kms ref
+    telegram_bot_token_ref: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)  # vault/kms ref
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     rate_limit_per_min: Mapped[int] = mapped_column(Integer, default=10)
     max_concurrency: Mapped[int] = mapped_column(Integer, default=3)

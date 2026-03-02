@@ -391,6 +391,92 @@ Replaced the Anthropic SDK with LiteLLM across the agent runtime. Provider is no
 
 ---
 
+---
+
+## 2026-03-01 — Alembic Initial Migration + Auth (Email/Password + SSO)
+
+### What Was Done
+
+**Git + GitHub:**
+- Initialized git repo (`git init`, branch `main`)
+- First commit: 74 files, 5,572 insertions
+- Pushed to `https://github.com/haedongyoo/agent-orchestrator`
+
+**User model changes (`apps/api/app/models/workspace.py`):**
+- Added `sso_provider: Optional[str]` — which OAuth2 provider ("google" | "github" | "microsoft")
+- Added `sso_sub: Optional[str]` — stable user ID from the provider (never changes)
+- Added `UniqueConstraint("sso_provider", "sso_sub", name="uq_users_sso_identity")` — prevents duplicate SSO identities; NULLs are distinct so email/password users are unaffected
+
+**Alembic initial migration (`apps/api/app/db/migrations/versions/001_initial_schema.py`):**
+- Manually written migration covering all 13 tables in FK-dependency order: `users → workspaces → user_channels → shared_email_accounts → agents → agent_containers → threads → messages → tasks → task_steps → approvals → audit_logs → llm_configs`
+- Includes `downgrade()` that drops tables in reverse order
+- Added performance indexes: `ix_messages_thread_id_created_at`, `ix_approvals_workspace_status`, `ix_audit_logs_workspace_id_created_at`
+- Removed the placeholder `.gitkeep` from `versions/`
+
+**Auth service (`apps/api/app/services/auth.py`):**
+- `hash_password(password)` / `verify_password(plain, hashed)` — passlib bcrypt
+- `create_access_token(subject, expires_delta?)` — HS256 JWT
+- `decode_access_token(token)` — raises HTTP 401 on any failure
+- `get_current_user(token, db)` — FastAPI dependency; decodes JWT → loads active User
+
+**SSO service (`apps/api/app/services/sso.py`):**
+- Supports: `google`, `github`, `microsoft`
+- `create_sso_state(provider)` / `verify_sso_state(state, provider)` — signed JWT state for CSRF protection (no Redis needed)
+- `build_authorization_url(provider, state)` — builds redirect URL with all required OAuth2 params
+- `exchange_code_for_user_info(provider, code, state)` — full OAuth2 code flow: verify state → exchange code for token → fetch user profile → return `SSOUserInfo`
+- GitHub special case: separate call to `/user/emails` if profile email is private
+- Checks that provider is configured; raises 503 if credentials missing
+
+**Auth router (`apps/api/app/routers/auth.py`) — fully implemented:**
+- `POST /api/auth/register` — 201 + JWT; 409 on duplicate email; 422 if password < 8 chars
+- `POST /api/auth/login` — OAuth2PasswordRequestForm (username=email); 401 on bad creds
+- `GET  /api/auth/sso/{provider}` — 302 redirect to provider; 400 on unknown provider
+- `GET  /api/auth/sso/{provider}/callback` — find-or-create user by SSO identity; links to existing email account if email matches; returns JWT
+- `GET  /api/auth/me` — returns `UserResponse` (id, email, is_active, sso_provider)
+
+**Config (`apps/api/app/config.py`):**
+- Added SSO env vars: `sso_redirect_base_url`, `google_client_id/secret`, `github_client_id/secret`, `microsoft_client_id/secret`, `microsoft_tenant_id`
+
+**Requirements (`apps/api/requirements.txt`):**
+- Added `email-validator==2.2.0` (required for Pydantic `EmailStr`)
+
+**Python 3.9 compatibility fixes:**
+- All SQLAlchemy model files: replaced `Mapped[X | None]` with `Mapped[Optional[X]]` and added `from typing import Optional`
+- All router/service files: added `from __future__ import annotations` for deferred annotation evaluation
+- Added `eval_type_backport` (Pydantic v2 recommendation for Python 3.9)
+- Installed compatible `bcrypt<4.0` locally (passlib 1.7.4 incompatibility with bcrypt 4.x)
+
+**Policy fix (`apps/api/app/services/orchestrator/policy.py`):**
+- `_create_approval_request()`: now explicitly generates `approval_id = uuid.uuid4()` before creating the Approval object, so it's available before DB flush (important for testability with mocked DBs)
+
+**Tests (`apps/api/app/tests/test_auth.py`) — 12 tests, all passing:**
+- `test_register_success` / `test_register_duplicate_email` / `test_register_short_password`
+- `test_login_success` / `test_login_wrong_password` / `test_login_unknown_email`
+- `test_me_authenticated` / `test_me_unauthenticated` / `test_me_expired_token`
+- `test_sso_redirect_google` / `test_sso_redirect_unsupported_provider`
+- `test_sso_callback_creates_new_user`
+
+**Full test suite: 17/17 passing** (`test_policy.py` + `test_auth.py`)
+
+### Decisions Made
+- **SSO state as JWT** — avoids Redis dependency just for state tokens. The JWT contains `{purpose, provider, exp}` and is signed with the app's `secret_key`. 10-min TTL.
+- **SSO account linking** — if a new SSO user's email matches an existing password account, the SSO identity is linked silently (no friction). This is the standard behavior in modern SaaS apps.
+- **No SSO-initiated `password_hash`** — SSO users have `password_hash=None`. They can set a password later (not implemented yet) if they want dual auth.
+- **`Optional[str]` in models, not `str | None`** — SQLAlchemy 2.0 on Python 3.9 evaluates deferred annotations at runtime; `str | None` fails in `eval()`. Target runtime is Python 3.12 (Docker) but local tests must work.
+- **Minimal test app** — auth tests import only `app.routers.auth` (not `app.main`), which avoids the Docker SDK import chain. Keeps test dependencies light.
+
+### Issues / Blockers
+- None — tests are green
+
+### Next Steps
+- `make up` to start Docker stack + `make migrate` to run `001_initial_schema.py`
+- Implement **workspace CRUD** (`POST /api/workspaces`, `GET/PUT /api/workspaces/{id}`)
+- Implement **agent CRUD** under workspace
+- Implement **thread + message CRUD** with cursor pagination
+- Wire orchestrator router to actually process messages
+
+---
+
 <!-- TEMPLATE FOR NEW ENTRIES:
 
 ## YYYY-MM-DD — Session Title

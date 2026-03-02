@@ -78,7 +78,11 @@ Primary use case: run 24/7 negotiation and sourcing workflows (furniture supplie
 
 ## 3) Minimal Data Model (Schema Draft)
 ### 3.1 Identity / Auth
-- `users`: id, email, password_hash/SSO, created_at
+- `users`: id, email, password_hash (nullable), sso_provider (nullable), sso_sub (nullable), is_active, created_at
+  - `sso_provider` ∈ {`google`, `github`, `microsoft`} — null for password accounts
+  - `sso_sub` — stable provider-unique user ID (never changes)
+  - Unique constraint on `(sso_provider, sso_sub)` — prevents duplicate SSO identities
+  - Account linking: if SSO email matches an existing password account, SSO identity is silently linked
 - `workspaces`: id, user_id, name, timezone, language_pref
 
 ### 3.2 Channel Configuration
@@ -302,15 +306,23 @@ Primary use case: run 24/7 negotiation and sourcing workflows (furniture supplie
 
 ## 9) Implementation Phases
 ### 9.1 MVP (Fastest Path)
-- Auth + workspace CRUD
-- Agent CRUD + role prompt
-- Web thread chat + message persistence
-- Telegram inbound/outbound (single bot per agent)
-- Email outbound + basic inbound polling (IMAP)
-- Orchestrator:
+- [x] Auth + Alembic initial migration (2026-03-01)
+  - Email/password registration + login (bcrypt + HS256 JWT)
+  - SSO: Google, GitHub, Microsoft (OAuth2 Authorization Code Flow)
+  - JWT state CSRF protection (avoids Redis coupling)
+  - Account linking: SSO email → existing password account
+  - `/api/auth/register`, `/api/auth/login`, `/api/auth/me`
+  - `/api/auth/sso/{provider}`, `/api/auth/sso/{provider}/callback`
+  - Alembic migration: all 13 tables + indexes in FK-dependency order
+- [ ] Workspace CRUD
+- [ ] Agent CRUD + role prompt
+- [ ] Web thread chat + message persistence
+- [ ] Telegram inbound/outbound (single bot per agent)
+- [ ] Email outbound + basic inbound polling (IMAP)
+- [ ] Orchestrator:
   - step queue
   - approval flow for agent-to-agent messages
-- Provide 2–3 role templates (negotiator/sourcing/contractor)
+- [ ] Provide 2–3 role templates (negotiator/sourcing/contractor)
 
 ### 9.2 V1
 - Vendor/contractor CRM
@@ -320,6 +332,41 @@ Primary use case: run 24/7 negotiation and sourcing workflows (furniture supplie
 - Observability: traces, step-level debugging, replay
 - Policy hardening:
   - always require approval for contract/commitment/payment language
+
+---
+
+## 9.5) Auth Architecture (Implemented 2026-03-01)
+
+### Token Format
+- HS256 JWT, `sub` = `str(user.id)`, configurable expiry (default 30 min via `ACCESS_TOKEN_EXPIRE_MINUTES`)
+- All tokens validated by `get_current_user` FastAPI dependency in `services/auth.py`
+
+### SSO Flow (stateless — no Redis required)
+1. `GET /api/auth/sso/{provider}` → generate signed JWT state (10-min TTL, `HS256`) → 302 redirect to provider
+2. `GET /api/auth/sso/{provider}/callback?code=...&state=...`
+   - Verify state JWT (provider match + expiry)
+   - POST code to provider token endpoint → access_token
+   - GET user profile (email, stable sub ID)
+   - GitHub: follow-up `/user/emails` call if profile email is private
+   - Find-or-create user → return JWT
+
+### Required Config (env vars)
+```
+SECRET_KEY=<random 32+ char string>
+SSO_REDIRECT_BASE_URL=https://api.yourdomain.com
+GOOGLE_CLIENT_ID=...  GOOGLE_CLIENT_SECRET=...
+GITHUB_CLIENT_ID=...  GITHUB_CLIENT_SECRET=...
+MICROSOFT_CLIENT_ID=...  MICROSOFT_CLIENT_SECRET=...
+MICROSOFT_TENANT_ID=common
+```
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `app/services/auth.py` | JWT create/decode, `get_current_user` dependency |
+| `app/services/sso.py` | OAuth2 state, code exchange, user info extraction |
+| `app/routers/auth.py` | All `/api/auth/*` endpoints |
+| `app/db/migrations/versions/001_initial_schema.py` | All 13 tables |
 
 ---
 

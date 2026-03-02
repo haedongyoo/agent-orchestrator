@@ -1,3 +1,4 @@
+from typing import Optional
 import uuid
 from datetime import datetime
 from sqlalchemy import String, Text, ForeignKey, DateTime, JSON
@@ -11,7 +12,7 @@ class Message(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     thread_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("threads.id"), nullable=False)
     sender_type: Mapped[str] = mapped_column(String(32), nullable=False)  # user | agent | system | external
-    sender_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)   # user_id or agent_id
+    sender_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True)   # user_id or agent_id
     channel: Mapped[str] = mapped_column(String(32), nullable=False)      # web | telegram | email | system
     content: Mapped[str] = mapped_column(Text, nullable=False)
     # JSON: language, attachments, email headers, telegram message_id, etc.
