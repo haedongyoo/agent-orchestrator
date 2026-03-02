@@ -823,6 +823,54 @@ All Phase 1 MVP items are now complete:
 
 ---
 
+## 2026-03-01 (Session 9) — Scheduler + Follow-ups (PR #10)
+
+### What Was Done
+
+**Scheduler + follow-ups** (PR #10, feat/scheduler-followups):
+
+**`services/orchestrator/scheduler.py` — full implementation:**
+- `schedule_followup(workspace_id, thread_id, agent_id, task_id, delay_seconds, message)`:
+  - Computes ETA = `now() + timedelta(seconds=delay_seconds)`
+  - Calls `celery_app.send_task("app.tasks.followups.fire_followup", eta=eta, queue="orchestrator")`
+  - Returns Celery async result ID as `schedule_id`
+- `cancel_followup(schedule_id)`:
+  - Calls `celery_app.control.revoke(schedule_id, terminate=False)`
+  - Returns `True` (revoke is fire-and-forget; no worker confirmation)
+- Both methods use lazy import of `celery_app` (same pattern as router.py)
+
+**`tasks/followups.py` — complete implementation:**
+- `handle_schedule_request(request)` Celery task (on orchestrator queue):
+  - Validates required fields (workspace_id, thread_id, agent_id, delay_seconds)
+  - Finds latest running/queued task for `(workspace_id, thread_id)` in DB
+  - Calls `Scheduler.schedule_followup()` → schedules `fire_followup` ETA task
+  - Returns `{success, schedule_id, task_id}`
+- `fire_followup(task_id, agent_id, workspace_id, thread_id, message)` ETA task:
+  - Checks task is still active (not done/failed)
+  - Creates `TaskStep(type=action, tool_call={"followup_message": message})`
+  - Calls `OrchestratorRouter.enqueue_existing_step()` → dispatches to `agent.{agent_id}` queue
+  - Agent wakes up with the follow-up instruction
+- `_do_schedule()` / `_dispatch_followup()` are pure async helpers with lazy imports (testable without Celery)
+
+**Agent `scheduler_tool.py` — TODO implemented:**
+- Module-level singleton Celery producer (same pattern as vendor_tool.py)
+- Posts `handle_schedule_request` to `orchestrator` queue via `send_task()`
+
+### Key Decisions Made
+- **schedule_id = Celery result.id** — this is the unique identifier for a queued ETA task; can be passed to `control.revoke()` for cancellation before firing
+- **Scheduler does NOT persist schedule state** — schedule_id is returned to agent tool caller (in tool output) for storage in conversation context if needed; no separate schedules table for MVP
+- **`fire_followup` re-dispatches via OrchestratorRouter** — consistent with all other step dispatches; policy enforcement applies to follow-up steps too
+- **Thread-scoped task lookup** in `handle_schedule_request` — picks the latest running task for the thread to associate the follow-up; covers the common case where one thread has one active task
+
+### Test Count
+- 152/152 passing (9 new scheduler tests)
+
+### Next Steps
+- PR #11: Observability — audit traces, `GET /api/tasks/{id}/trace`, correlation IDs
+- PR #12: Policy hardening — detect commitment/contract/payment language → auto-approval gate
+
+---
+
 <!-- TEMPLATE FOR NEW ENTRIES:
 
 ## YYYY-MM-DD — Session Title

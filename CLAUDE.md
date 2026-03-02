@@ -289,7 +289,11 @@ schedule_followup(task_id, when, payload) -> schedule_id
   - Agent `vendor_tool.py` — implemented: posts to orchestrator queue via Celery `send_task()` (agents never reach Postgres)
   - 143/143 tests passing (18 new vendor tests)
 - [ ] Multi-language translation tool
-- [ ] Robust scheduler for follow-ups (Celery ETA + `schedule_followup` complete implementation)
+- [x] **Scheduler + follow-ups** (PR #10)
+  - `services/orchestrator/scheduler.py` — `Scheduler.schedule_followup()` creates Celery ETA task; `cancel_followup()` calls `celery.control.revoke()`; schedule_id = Celery async result ID
+  - `tasks/followups.py` — `handle_schedule_request` Celery task (finds active task for thread, delegates to Scheduler); `fire_followup` ETA task (creates new TaskStep, dispatches to agent queue via OrchestratorRouter)
+  - Agent `scheduler_tool.py` — implemented: posts `handle_schedule_request` to orchestrator queue via Celery `send_task()`
+  - 152/152 tests passing (9 new scheduler tests)
 - [ ] Email provider OAuth (Gmail/Graph)
 - [ ] Observability: traces, step-level debugging, `GET /api/tasks/{id}/trace`
 - [ ] Policy hardening: detect commitment/contract/payment language → auto-approval gate
