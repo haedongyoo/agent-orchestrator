@@ -259,7 +259,14 @@ schedule_followup(task_id, when, payload) -> schedule_id
   - Outbound: `send_message(bot_token, chat_id, text)` via httpx to Telegram Bot API
   - `telegram_bot_token_ref` = raw token (MVP); `_resolve_token()` is the Vault swap point
   - 88/88 tests passing
-- [ ] Email outbound + basic inbound polling (IMAP)
+- [x] **Email outbound + IMAP inbound polling** (PR #6, feat/email-connector)
+  - `send_email(credentials_ref, from_alias, signature?)` via aiosmtplib STARTTLS; RFC 5322 Message-ID; In-Reply-To/References headers
+  - `poll_inbox(credentials_ref, since_uid?)` via aioimaplib; UNSEEN fetch for MVP; `_parse_raw_email()` extracts body + headers
+  - `find_or_create_email_thread(db, workspace_id, msg_dict)` — In-Reply-To → References → create new Thread
+  - `_poll_account()` (inbox_poll.py): persists Message, creates Task, dispatches to agent queue via Planner + OrchestratorRouter
+  - `credentials_ref` = Fernet-encrypted JSON `{smtp_host, smtp_port, imap_host, imap_port, username, password}`
+  - aiosmtplib/aioimaplib: lazy imports (Docker-only; not installed locally — same pattern as Docker SDK)
+  - 99/99 tests passing (20 new email tests)
 - [ ] 2–3 role templates (negotiator / sourcing / contractor)
 
 ### Phase 2 — V1

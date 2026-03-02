@@ -330,7 +330,11 @@ Primary use case: run 24/7 negotiation and sourcing workflows (furniture supplie
   - Outbound: send_message(bot_token, chat_id, text) via httpx → Telegram Bot API
   - Helpers: register_webhook(), delete_webhook()
   - Thread auto-created per (workspace_id, chat_id); reused on subsequent messages
-- [ ] Email outbound + basic inbound polling (IMAP)
+- [x] Email outbound + basic inbound polling (IMAP) (2026-03-01)
+  - Outbound: send_email(credentials_ref, from_alias, signature) via aiosmtplib STARTTLS; MIME + threading headers
+  - Inbound: poll_inbox(credentials_ref, since_uid?) via aioimaplib; UNSEEN fetch for MVP
+  - find_or_create_email_thread: In-Reply-To → References → new Thread (linked_email_thread_id)
+  - _poll_account(): resolves workspace owner, persists Message, creates Task, dispatches to agent queue
 - [x] Orchestrator:
   - step queue (dispatch_step → agent.{id} Redis queue via Celery)
   - A2A approval gating (policy.py queries approvals table; scope-checked by agent pair, thread, duration)
