@@ -280,7 +280,14 @@ schedule_followup(task_id, when, payload) -> schedule_id
   - `docker-compose.yml` (dev): added api healthcheck; added `ENCRYPTION_KEY` to orchestrator-beat; fixed `LLM_MAX_TOKENS` default (32768)
   - `docker-compose.prod.yml`: new production compose — image-based (no build context), Redis/Postgres password enforcement, no exposed DB ports, `--workers 4` uvicorn, `restart: always`
   - `Makefile`: fixed test paths (`app/tests/` not `apps/api/app/tests/`); added `prod-build/up/down/migrate/logs` targets
-- [ ] Vendor/contractor CRM — `Vendor` model, CRUD endpoints, `upsert_vendor` tool wired
+- [x] **Vendor/contractor CRM** (PR #9)
+  - `models/vendor.py` — `Vendor` table: workspace_id (FK), name (unique per workspace), email, category, contact_name, phone, website, country, notes, tags (JSON)
+  - `db/migrations/versions/002_add_vendors.py` — Alembic migration
+  - `services/vendors.py` — `upsert_vendor()`, `list_vendors()`, `get_vendor()`, `delete_vendor()` (upsert matches on `(workspace_id, name)`)
+  - `routers/vendors.py` — `GET/POST /api/workspaces/{id}/vendors`, `GET/PUT/DELETE /api/workspaces/{id}/vendors/{vid}`; category validated against allowlist
+  - `tasks/vendor_ops.py` — `handle_vendor_upsert` Celery task on orchestrator queue; lazy DB imports for testability
+  - Agent `vendor_tool.py` — implemented: posts to orchestrator queue via Celery `send_task()` (agents never reach Postgres)
+  - 143/143 tests passing (18 new vendor tests)
 - [ ] Multi-language translation tool
 - [ ] Robust scheduler for follow-ups (Celery ETA + `schedule_followup` complete implementation)
 - [ ] Email provider OAuth (Gmail/Graph)

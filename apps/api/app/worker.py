@@ -22,6 +22,7 @@ celery_app = Celery(
         "app.tasks.step_results",   # process results coming back from agents
         "app.tasks.inbox_poll",     # periodic IMAP polling
         "app.tasks.followups",      # scheduled follow-up dispatching
+        "app.tasks.vendor_ops",     # vendor/contractor CRM upserts from agents
     ],
 )
 

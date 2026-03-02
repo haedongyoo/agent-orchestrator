@@ -767,6 +767,62 @@ All Phase 1 MVP items are now complete:
 
 ---
 
+## 2026-03-01 (Session 8) — Vendor/Contractor CRM (PR #9)
+
+### What Was Done
+
+**Vendor CRM** (PR #9, feat/vendor-crm):
+
+**`models/vendor.py` — New `Vendor` table:**
+- Columns: `workspace_id` (FK → workspaces CASCADE), `name`, `email`, `category`, `contact_name`, `phone`, `website`, `country`, `notes`, `tags` (JSON), `created_at`, `updated_at`
+- Unique constraint: `(workspace_id, name)` — upsert_vendor matches on name per workspace
+- Back-reference on `Workspace.vendors`
+
+**`db/migrations/versions/002_add_vendors.py`:**
+- Creates `vendors` table with `ix_vendors_workspace_id` index
+
+**`services/vendors.py`:**
+- `upsert_vendor(db, workspace_id, name, ...)` — SELECT by `(workspace_id, name)` → INSERT or UPDATE non-None fields
+- `list_vendors(db, workspace_id, category?, limit, offset)` — ordered by name; optional category filter
+- `get_vendor(db, workspace_id, vendor_id)` — workspace-scoped lookup
+- `delete_vendor(db, workspace_id, vendor_id)` — returns bool; workspace-scoped
+
+**`routers/vendors.py` — 5 endpoints:**
+- `GET /api/workspaces/{id}/vendors` — list with optional `?category=` filter, `?limit=`, `?offset=`
+- `POST /api/workspaces/{id}/vendors` — upsert (201); category validated against allowlist: `furniture_supplier|material_factory|contractor|logistics|other`
+- `GET /api/workspaces/{id}/vendors/{vid}` — get single (200/404)
+- `PUT /api/workspaces/{id}/vendors/{vid}` — partial update (200/404)
+- `DELETE /api/workspaces/{id}/vendors/{vid}` — delete (204/404)
+- All require Bearer JWT; workspace ownership validated (returns 404 on non-owner)
+
+**`tasks/vendor_ops.py` — Celery task:**
+- `handle_vendor_upsert(request)` registered on `orchestrator` queue
+- `_do_upsert(request)` — pure async function with lazy imports (testable without Celery)
+- Validates `workspace_id` UUID format; returns `{"success": bool, ...}`
+
+**Agent `vendor_tool.py` — TODO implemented:**
+- Module-level singleton `_orch_producer` Celery app (lazy-initialized, broker=REDIS_URL)
+- Posts to `orchestrator` queue via `send_task("app.tasks.vendor_ops.handle_vendor_upsert")`
+- Agents never reach Postgres — the orchestrator writes the DB row
+
+**`worker.py`:** added `app.tasks.vendor_ops` to includes list
+
+### Key Decisions Made
+- **`sys.modules` mock for Celery** in test file — avoids the `ModuleNotFoundError: No module named 'celery'` issue (Celery not installed locally); consistent with the lazy-import pattern used by Docker SDK
+- **Patch lazy imports at source module** — `patch("app.db.session.AsyncSessionLocal")` and `patch("app.services.vendors.upsert_vendor")` (not `app.tasks.vendor_ops.*`) because they're local imports inside `_do_upsert`
+- **Vendor name is the natural key** per workspace — simplifies upsert semantics (no need for external ID from agents)
+- **Category allowlist** enforced at router layer only — same pattern as `allowed_tools` and `provider_type`; keeps service layer flexible for internal use
+
+### Test Count
+- 143/143 passing (18 new vendor tests)
+
+### Next Steps
+- PR #10: Scheduler + follow-ups — complete `schedule_followup()` with Celery ETA
+- PR #11: Observability — audit traces, `GET /api/tasks/{id}/trace`
+- PR #12: Policy hardening
+
+---
+
 <!-- TEMPLATE FOR NEW ENTRIES:
 
 ## YYYY-MM-DD — Session Title
