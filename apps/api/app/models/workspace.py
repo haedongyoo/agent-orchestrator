@@ -38,6 +38,7 @@ class Workspace(Base):
     owner: Mapped[User] = relationship(back_populates="workspaces")
     agents: Mapped[list["Agent"]] = relationship(back_populates="workspace")  # type: ignore[name-defined]
     threads: Mapped[list["Thread"]] = relationship(back_populates="workspace")  # type: ignore[name-defined]
+    vendors: Mapped[list["Vendor"]] = relationship(back_populates="workspace")  # type: ignore[name-defined]
 
 
 class UserChannel(Base):

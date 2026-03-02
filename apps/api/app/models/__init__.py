@@ -7,6 +7,7 @@ from app.models.approval import Approval
 from app.models.audit import AuditLog
 from app.models.container import AgentContainer
 from app.models.llm_config import LLMConfig
+from app.models.vendor import Vendor
 
 __all__ = [
     "User",
@@ -22,4 +23,5 @@ __all__ = [
     "AuditLog",
     "AgentContainer",
     "LLMConfig",
+    "Vendor",
 ]
