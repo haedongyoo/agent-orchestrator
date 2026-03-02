@@ -1,0 +1,26 @@
+# Queue
+celery==5.4.0
+redis==5.1.1
+
+# HTTP (Telegram API, OAuth endpoints)
+httpx==0.27.2
+
+# Email
+aiosmtplib==3.0.1
+aioimaplib==2.0.0
+
+# Settings
+pydantic==2.9.2
+pydantic-settings==2.5.2
+
+# LiteLLM — provider-agnostic LLM client
+# Supports: OpenAI, Anthropic, Gemini, Ollama, Bedrock, Groq, Mistral, Azure, +100 more
+# Switch provider by changing LLM_MODEL env var — no code changes needed.
+litellm>=1.0.0
+
+# Structured logging
+structlog==24.4.0
+
+# Dev / testing
+pytest==8.3.3
+pytest-asyncio==0.24.0

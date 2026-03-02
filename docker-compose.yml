@@ -1,0 +1,221 @@
+# OpenClaw Agent Orchestrator — Docker Compose (development)
+#
+# Network topology (security-critical):
+#
+#   backend-net  →  api, orchestrator-worker, postgres, redis
+#   agent-net    →  agent-worker-*, redis
+#
+#   Agent containers are on agent-net ONLY.
+#   They can reach Redis (task queue) and the public internet (email/Telegram).
+#   They CANNOT reach Postgres or the API service by hostname.
+#   Agents communicate with the orchestrator exclusively via Redis queues.
+#
+# Scaling agents:
+#   docker compose up --scale agent-worker=3
+#   (each worker instance needs its own AGENT_ID — see comments below)
+
+services:
+
+  # ── Infrastructure ─────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: openclaw
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d openclaw"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"   # exposed for local DB tools (pgAdmin, DBeaver)
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend-net   # orchestrator reads/writes results
+      - agent-net     # agents pick up tasks and post results
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "6379:6379"   # exposed for local debugging
+
+  # ── API + Orchestrator (backend-net) ───────────────────────────────────────
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/openclaw
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      APP_ENV: development
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    volumes:
+      - ./apps/api/app:/app/app   # hot-reload in dev
+    networks:
+      - backend-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    command: >
+      uvicorn app.main:app
+        --host 0.0.0.0
+        --port 8000
+        --reload
+
+  orchestrator-worker:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/openclaw
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      # Docker config for container management
+      DOCKER_AGENT_NETWORK: agent-orchestrator_agent-net
+      DOCKER_AGENT_IMAGE: openclaw/agent-runtime:latest
+      # Must match the API service — used to decrypt API keys when spawning containers
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    volumes:
+      - ./apps/api/app:/app/app
+      # Docker socket: allows orchestrator to spawn/stop/inspect agent containers.
+      # SECURITY: This gives the orchestrator root-equivalent access to Docker.
+      # In production, use Docker API over TLS with a restricted socket proxy instead.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - backend-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A app.worker worker
+        --loglevel=info
+        --queues=orchestrator
+        --concurrency=4
+
+  orchestrator-beat:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/openclaw
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - ./apps/api/app:/app/app
+    networks:
+      - backend-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A app.worker beat
+        --loglevel=info
+        --scheduler celery.beat.PersistentScheduler
+
+  # ── Agent Runtime (agent-net ONLY — cannot reach postgres or api) ──────────
+  #
+  # SECURITY: Do NOT add backend-net here. Ever.
+  #
+  # Each running agent is a separate container instance with its own AGENT_ID.
+  # The orchestrator spawns/stops agent containers via the Docker API when
+  # agents are enabled/disabled in the workspace settings.
+  #
+  # For development, a single placeholder agent-worker is defined here.
+  # In production, agent containers are managed dynamically by the orchestrator.
+  #
+  agent-worker:
+    image: openclaw/agent-runtime:latest   # explicit name so ContainerManager can reference it
+    build:
+      context: ./apps/agent
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      # AGENT_ID must be set to the UUID of the agent this worker serves.
+      # Override per-instance: docker compose up -e AGENT_ID=<uuid> agent-worker
+      AGENT_ID: ${AGENT_ID:-placeholder-set-agent-id}
+      # ── LiteLLM provider config ──────────────────────────────────────────────
+      # Change LLM_MODEL to switch providers — no image rebuild needed.
+      # See .env.example for provider-specific examples (OpenAI, Gemini, Ollama…)
+      LLM_MODEL:      ${LLM_MODEL:-anthropic/claude-opus-4-6}
+      LLM_API_KEY:    ${LLM_API_KEY:-}
+      LLM_API_BASE:   ${LLM_API_BASE:-}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-4096}
+    networks:
+      - agent-net     # ONLY — no backend-net, no postgres access
+    depends_on:
+      redis:
+        condition: service_healthy
+    # Each agent worker listens on its own queue: agent.<agent_id>
+    command: >
+      celery -A agent_runtime.main worker
+        --loglevel=info
+        --queues=agent.${AGENT_ID:-placeholder-set-agent-id}
+        --concurrency=1
+
+  # ── One-shot migration runner ──────────────────────────────────────────────
+  #
+  # Run with: docker compose run --rm migrate
+  #
+  migrate:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/openclaw
+    networks:
+      - backend-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: alembic upgrade head
+    profiles:
+      - tools   # only runs when explicitly requested
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  backend-net:
+    driver: bridge
+    internal: false   # api needs outbound for OAuth, webhook registration, etc.
+  agent-net:
+    driver: bridge
+    internal: false   # agents need outbound for email SMTP/Telegram Bot API
