@@ -11,7 +11,6 @@ Security rules:
   - Only the workspace owner may read/write configs.
   - Test-connection calls use the stored key; result indicates success/failure only.
 """
-from __future__ import annotations
 
 import uuid
 from typing import Optional
