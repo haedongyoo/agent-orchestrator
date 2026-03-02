@@ -720,6 +720,53 @@ All Phase 1 MVP items are now complete:
 
 ---
 
+## 2026-03-01 (Session 7) — Production Containerization (PR #8)
+
+### What Was Done
+
+**Containerization fixes + production compose** (PR #8, feat/containerization-prod):
+
+**`apps/agent/Dockerfile` — two critical bug fixes:**
+- **CMD shell variable expansion**: Exec-form `["celery", ..., "agent.{AGENT_ID}"]` treats `{AGENT_ID}` as a literal string. Switched to shell form `CMD sh -c "celery ... --queues=agent.${AGENT_ID:-placeholder}"` so the env var expands at container startup.
+- **File ownership**: `COPY . .` runs as root before `useradd`, so all files were root-owned; `agent` user couldn't write temp files. Fixed with `chown -R agent:agent /app` in the same `RUN` layer as `useradd`.
+
+**`docker-compose.yml` (dev) — three fixes:**
+- Added `healthcheck` block to the `api` service (was missing; other services couldn't reliably depend on it).
+- Added `ENCRYPTION_KEY: ${ENCRYPTION_KEY}` to `orchestrator-beat` (was present on worker but missing on beat, causing `decrypt_api_key()` to fail in beat tasks).
+- Fixed `LLM_MAX_TOKENS` default from `4096` → `32768` (claude-opus-4-6 supports 32K output tokens).
+
+**`docker-compose.prod.yml` — new production compose file:**
+- Uses named image tags (`openclaw/api:${IMAGE_TAG:-latest}`) instead of build context — production deploys pull pre-built images.
+- Removes hot-reload volume mounts (image ships final code).
+- No exposed Postgres or Redis ports — DB is internal-only in production.
+- Redis password enforced: `--requirepass ${REDIS_PASSWORD}` with `${REDIS_PASSWORD:?...}` required-var syntax.
+- Postgres password: `${POSTGRES_PASSWORD:?...}` — fails loudly if unset.
+- Uvicorn runs `--workers 4` instead of `--reload`.
+- `restart: always` (tolerates host reboots).
+- `APP_ENV: production`, `LOG_LEVEL: info`.
+
+**`Makefile` — two fixes + 5 new prod targets:**
+- Fixed test paths: `apps/api/app/tests/` → `app/tests/` (container WORKDIR is `/app`; tests live at `/app/app/tests/`).
+- Fixed `test-policy` path similarly.
+- Added `prod-build`, `prod-up`, `prod-down`, `prod-migrate`, `prod-logs` targets using `-f docker-compose.prod.yml`.
+
+### Key Decisions Made
+- **`docker-compose.prod.yml` uses image references, not build context** — CI/CD builds and tags images; production just pulls them. This separates build from deploy.
+- **Redis password required in prod** — `${REDIS_PASSWORD:?REDIS_PASSWORD must be set}` syntax causes compose to exit 1 if the variable is unset or empty, preventing misconfigured deployments.
+- **`restart: always` vs `unless-stopped`** — production services must survive host reboots; dev services use `unless-stopped` to allow `docker compose down` without auto-restart on boot.
+- **No socket proxy yet** — Docker socket on orchestrator-worker is still direct (`/var/run/docker.sock`). Noted as production hardening item (TLS Docker API or socket proxy).
+
+### Test Count
+- 116/116 passing (no new tests — containerization changes are infra, not app logic)
+
+### Next Steps (Phase 2 — V1 continues)
+- PR #9: Vendor/Contractor CRM — `Vendor` model, CRUD endpoints, wire `upsert_vendor` tool
+- PR #10: Scheduler + follow-ups — complete `schedule_followup()` with Celery ETA
+- PR #11: Observability — audit traces, `GET /api/tasks/{id}/trace`
+- PR #12: Policy hardening — detect commitment/contract/payment language → auto-approval gate
+
+---
+
 <!-- TEMPLATE FOR NEW ENTRIES:
 
 ## YYYY-MM-DD — Session Title

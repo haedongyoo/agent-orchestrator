@@ -274,13 +274,18 @@ schedule_followup(task_id, when, payload) -> schedule_id
   - Each template: `role_prompt` (250–500 words), `allowed_tools`, `rate_limit_per_min`, `max_concurrency`
   - 116/116 tests passing (17 new template tests)
 
-### Phase 2 — V1
-- [ ] Vendor/contractor CRM
+### Phase 2 — V1 (in progress)
+- [x] **Production containerization** (PR #8)
+  - `apps/agent/Dockerfile`: fixed CMD shell-form for `$AGENT_ID` expansion; fixed file ownership (`chown -R agent:agent /app`)
+  - `docker-compose.yml` (dev): added api healthcheck; added `ENCRYPTION_KEY` to orchestrator-beat; fixed `LLM_MAX_TOKENS` default (32768)
+  - `docker-compose.prod.yml`: new production compose — image-based (no build context), Redis/Postgres password enforcement, no exposed DB ports, `--workers 4` uvicorn, `restart: always`
+  - `Makefile`: fixed test paths (`app/tests/` not `apps/api/app/tests/`); added `prod-build/up/down/migrate/logs` targets
+- [ ] Vendor/contractor CRM — `Vendor` model, CRUD endpoints, `upsert_vendor` tool wired
 - [ ] Multi-language translation tool
-- [ ] Robust scheduler for follow-ups
+- [ ] Robust scheduler for follow-ups (Celery ETA + `schedule_followup` complete implementation)
 - [ ] Email provider OAuth (Gmail/Graph)
-- [ ] Observability: traces, step-level debugging, replay
-- [ ] Policy hardening: approval required for contract/commitment/payment language
+- [ ] Observability: traces, step-level debugging, `GET /api/tasks/{id}/trace`
+- [ ] Policy hardening: detect commitment/contract/payment language → auto-approval gate
 
 ---
 
