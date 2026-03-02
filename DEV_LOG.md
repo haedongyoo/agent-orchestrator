@@ -620,6 +620,52 @@ Replaced the Anthropic SDK with LiteLLM across the agent runtime. Provider is no
 
 ---
 
+## 2026-03-01 (Session 5) — Email Connector (Outbound SMTP + Inbound IMAP)
+
+### What Was Done
+
+**Email connector** (PR #6, feat/email-connector):
+
+**`services/connectors/email.py` — full implementation:**
+- `_resolve_credentials(credentials_ref)` — decrypts Fernet-encrypted JSON blob → `{smtp_host, smtp_port, imap_host, imap_port, username, password}`; production: swap to Vault path read
+- `send_email(email, credentials_ref, from_alias, signature?)` — SMTP via aiosmtplib (STARTTLS); builds MIME multipart; sets RFC 5322 `Message-ID`; sets `In-Reply-To` + `References` for email threading; returns generated message_id
+- `poll_inbox(credentials_ref, mailbox?, since_uid?)` — IMAP via aioimaplib; incremental fetch (`UID n+1:*`) or UNSEEN; parses RFC 822 bytes into structured dicts
+- `find_or_create_email_thread(db, workspace_id, msg_dict)` — thread matching by In-Reply-To → References → create new; exported for use by `inbox_poll`
+- `_parse_raw_email(uid, raw)` — parses raw RFC 822 bytes into structured dict; handles multipart + single-part; extracts In-Reply-To, References headers
+- IMAP response helpers: `_is_ok()` handles both tuple-return (older aioimaplib) and object-return (aioimaplib 2.x) APIs; `_extract_uid_list()`, `_extract_message_bytes()`
+- Both aiosmtplib and aioimaplib lazily imported (not installed locally; live in Docker image — same pattern as Docker SDK)
+
+**`tasks/inbox_poll.py` — `_poll_account()` completed:**
+- Calls `poll_inbox(account.credentials_ref)` (UNSEEN for MVP; UID tracking for V1)
+- Opens DB session; resolves workspace owner for `Task.created_by` FK
+- For each inbound email: `find_or_create_email_thread()` → persist Message → create Task (objective = "Inbound email from...") → `Planner.decompose()` → `OrchestratorRouter.enqueue_existing_step()` → task.status = "running"
+- Full error handling: log + rollback per-message on failure; log + return on poll failure
+- Removed `_find_or_create_email_thread` from inbox_poll (moved to email.py for testability without Celery)
+
+**`tests/test_email.py` — 20 tests, all passing:**
+- `TestResolveCredentials` (2): roundtrip decrypt, invalid token raises
+- `TestSendEmail` (4): calls aiosmtplib.send, correct SMTP params, reply headers set, signature appended
+- `TestParseRawEmail` (3): basic fields parsed, reply headers, empty headers → None
+- `TestImapHelpers` (7): `_is_ok` for tuple + object, `_extract_uid_list` for bytes + empty + object
+- `TestFindOrCreateEmailThread` (4): match by In-Reply-To, match by References, create on miss, create with no headers
+
+### Key Decisions Made
+- `credentials_ref` = Fernet-encrypted JSON blob (same `encrypt_api_key`/`decrypt_api_key` from secrets.py); JSON contains full SMTP+IMAP credentials; production = Vault path
+- `find_or_create_email_thread` lives in `email.py` (not `inbox_poll.py`) — pure email logic, no Celery dep → testable without broker
+- `poll_inbox` always fetches UNSEEN for MVP — UID tracking per account is V1 work (requires DB field or Redis key per account)
+- Each inbound email creates a Task with objective = from+subject summary; Planner picks agent based on workspace context
+- aioimaplib/aiosmtplib: lazy imports at point of use (not at module level) — same pattern as Docker SDK; prevents `ModuleNotFoundError` in local test environment
+
+### Test Count
+- 99/99 passing (up from 88 — added 20 email tests, +11 from previous connector tests now included in full suite, -9 connector tests excluded via --ignore)
+
+### Next Steps
+- Role templates: negotiator / sourcing / contractor (remaining Phase 1 MVP item)
+- V1: IMAP UID tracking per `SharedEmailAccount` (requires new DB column `last_imap_uid`)
+- V1: Attachment handling in `_parse_raw_email` (currently text/plain only)
+
+---
+
 <!-- TEMPLATE FOR NEW ENTRIES:
 
 ## YYYY-MM-DD — Session Title
