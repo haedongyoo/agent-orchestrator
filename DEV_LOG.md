@@ -666,6 +666,60 @@ Replaced the Anthropic SDK with LiteLLM across the agent runtime. Provider is no
 
 ---
 
+## 2026-03-01 (Session 6) — Role Templates (Negotiator, Sourcing Agent, Contractor Liaison)
+
+### What Was Done
+
+**Role templates** (PR #7, feat/role-templates):
+
+**`services/role_templates.py` — 3 built-in templates:**
+- Frozen `RoleTemplate` dataclass (id, name, description, role_prompt, allowed_tools, rate_limit_per_min, max_concurrency)
+- `list_templates()` / `get_template(id)` public API
+- **Negotiator**: price negotiation, counter-offers, deal closing; tools: send_email, send_telegram, post_web_message, request_approval, schedule_followup; rate 10/min, concurrency 2
+- **Sourcing Agent**: global RFQ campaigns, vendor DB management; tools: send_email, read_email_inbox, post_web_message, upsert_vendor, request_approval, schedule_followup; rate 20/min, concurrency 5
+- **Contractor Liaison**: local contractor coord, milestone tracking, payment approvals; tools: send_email, send_telegram, post_web_message, request_approval, schedule_followup; rate 10/min, concurrency 3
+- Each role_prompt: 250-500 words covering persona, workflow, constraints, and tool guidance
+
+**`routers/role_templates.py` — 2 endpoints (no auth — public metadata):**
+- `GET /api/agent-templates` → list all 3 templates (200)
+- `GET /api/agent-templates/{id}` → get single (200); 404 + detail message on unknown id
+
+**`main.py`:** registered `role_templates.router` at prefix `/api`, tag `agent-templates`
+
+**`tests/test_role_templates.py` — 17 tests:**
+- Service layer: list returns all 3, get each by id, unknown returns None, all tools valid, prompts non-empty, rate limits positive, dataclass immutability
+- HTTP layer: list returns 3 items, schema fields present, tools are lists, get each by id, 404 on unknown, 404 detail contains id
+
+### Key Decisions Made
+- Templates are **immutable** (frozen dataclass) — no DB table needed; they're product defaults, not user data
+- **No auth required** on template endpoints — templates contain no sensitive data and are meant for UI dropdowns at agent creation time
+- `allowed_tools` in templates cross-validated against the same VALID_TOOLS allowlist used by the agents router — any mismatch would fail the test `test_all_template_tools_are_valid`
+- Templates cover all 7 defined tools across the 3 roles (upsert_vendor only in sourcing, read_email_inbox only in sourcing)
+- Sourcing agent has higher rate limit (20/min vs 10/min) to support bulk RFQ campaigns
+
+### Test Count
+- 116/116 passing (17 new tests)
+
+### Phase 1 MVP Status
+All Phase 1 MVP items are now complete:
+- [x] Auth + Alembic initial migration
+- [x] Workspace CRUD
+- [x] Agent CRUD + role prompt
+- [x] Web thread chat + message persistence
+- [x] Telegram inbound/outbound
+- [x] Email outbound + IMAP polling
+- [x] Orchestrator: step queue + A2A approval gating
+- [x] Role templates (negotiator / sourcing / contractor)
+
+### Next Steps (Phase 2 — V1)
+- Vendor/contractor CRM (upsert_vendor tool implementation)
+- Multi-language translation tool
+- Robust scheduler for follow-ups (Temporal integration)
+- Email provider OAuth (Gmail/Graph)
+- Observability: traces, step-level debugging, replay
+
+---
+
 <!-- TEMPLATE FOR NEW ENTRIES:
 
 ## YYYY-MM-DD — Session Title

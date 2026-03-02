@@ -340,7 +340,9 @@ Primary use case: run 24/7 negotiation and sourcing workflows (furniture supplie
   - A2A approval gating (policy.py queries approvals table; scope-checked by agent pair, thread, duration)
   - task status state machine (step_results.py updates task done/failed when all steps terminal)
   - task CRUD endpoints: POST/GET /tasks, GET /tasks/{id}/steps, POST /tasks/{id}/cancel
-- [ ] Provide 2–3 role templates (negotiator/sourcing/contractor)
+- [x] Provide 2–3 role templates (negotiator/sourcing/contractor) (2026-03-01)
+  - GET /api/agent-templates → list; GET /api/agent-templates/{id} → single (no auth, public)
+  - Negotiator, Sourcing Agent, Contractor Liaison — each with full role_prompt + tool allowlist
 
 ### 9.2 V1
 - Vendor/contractor CRM

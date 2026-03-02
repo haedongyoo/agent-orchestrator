@@ -267,7 +267,12 @@ schedule_followup(task_id, when, payload) -> schedule_id
   - `credentials_ref` = Fernet-encrypted JSON `{smtp_host, smtp_port, imap_host, imap_port, username, password}`
   - aiosmtplib/aioimaplib: lazy imports (Docker-only; not installed locally — same pattern as Docker SDK)
   - 99/99 tests passing (20 new email tests)
-- [ ] 2–3 role templates (negotiator / sourcing / contractor)
+- [x] **Role templates: Negotiator, Sourcing Agent, Contractor Liaison** (PR #7)
+  - `services/role_templates.py` — 3 frozen `RoleTemplate` dataclasses; `list_templates()` / `get_template(id)`
+  - `GET /api/agent-templates` — list all (public, no auth required)
+  - `GET /api/agent-templates/{id}` — single template; 404 on unknown id
+  - Each template: `role_prompt` (250–500 words), `allowed_tools`, `rate_limit_per_min`, `max_concurrency`
+  - 116/116 tests passing (17 new template tests)
 
 ### Phase 2 — V1
 - [ ] Vendor/contractor CRM

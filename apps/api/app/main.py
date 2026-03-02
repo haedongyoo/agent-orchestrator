@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.db.session import engine, Base
-from app.routers import auth, workspaces, agents, threads, tasks, approvals, llm_configs
+from app.routers import auth, workspaces, agents, threads, tasks, approvals, llm_configs, role_templates
 from app.services.connectors import telegram, webchat
 
 
@@ -40,7 +40,8 @@ app.include_router(agents.router,      prefix="/api/workspaces", tags=["agents"]
 app.include_router(threads.router,     prefix="/api",            tags=["threads"])
 app.include_router(tasks.router,       prefix="/api",            tags=["tasks"])
 app.include_router(approvals.router,   prefix="/api",            tags=["approvals"])
-app.include_router(llm_configs.router, prefix="/api",            tags=["llm-config"])
+app.include_router(llm_configs.router,      prefix="/api",            tags=["llm-config"])
+app.include_router(role_templates.router,   prefix="/api",            tags=["agent-templates"])
 
 # ── Connector endpoints (webhooks) ────────────────────────────────────────────
 app.include_router(telegram.router,    prefix="/api/connectors", tags=["connectors"])
