@@ -254,7 +254,11 @@ schedule_followup(task_id, when, payload) -> schedule_id
   - Task CRUD: `POST /api/threads/{id}/tasks`, `GET /api/tasks/{id}`, `GET /api/tasks/{id}/steps`, `POST /api/tasks/{id}/cancel`
   - `step_results.py` updates task status to done/failed when all steps are terminal
   - 79/79 tests passing
-- [ ] Telegram inbound/outbound (single bot per agent)
+- [x] **Telegram inbound/outbound** — `POST /api/connectors/telegram/{agent_id}`
+  - Inbound: finds/creates thread by chat_id, persists message, creates Task, dispatches to agent queue
+  - Outbound: `send_message(bot_token, chat_id, text)` via httpx to Telegram Bot API
+  - `telegram_bot_token_ref` = raw token (MVP); `_resolve_token()` is the Vault swap point
+  - 88/88 tests passing
 - [ ] Email outbound + basic inbound polling (IMAP)
 - [ ] 2–3 role templates (negotiator / sourcing / contractor)
 
