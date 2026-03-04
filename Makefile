@@ -1,6 +1,7 @@
-.PHONY: help up down restart build logs logs-api logs-worker logs-agent \
+.PHONY: help up down restart build logs logs-api logs-worker logs-agent logs-web \
         migrate migrate-down migrate-history shell shell-agent \
         test test-policy scale-agents clean clean-images \
+        dev-web \
         prod-build prod-up prod-down prod-migrate prod-logs
 
 # ── Colours ────────────────────────────────────────────────────────────────────
@@ -42,6 +43,9 @@ logs-worker:  ## Tail orchestrator worker logs
 logs-agent:  ## Tail all agent-worker logs
 	docker compose logs -f agent-worker
 
+logs-web:  ## Tail web UI logs
+	docker compose logs -f web
+
 # ── Database ───────────────────────────────────────────────────────────────────
 
 migrate:  ## Run Alembic migrations (upgrade head)
@@ -80,6 +84,11 @@ test-policy:  ## Run policy engine tests only (fastest safety check)
 scale-agents:  ## Scale agent workers: make scale-agents N=3
 	@if [ -z "$(N)" ]; then echo "Usage: make scale-agents N=<count>"; exit 1; fi
 	docker compose up -d --scale agent-worker=$(N) agent-worker
+
+# ── Web UI ────────────────────────────────────────────────────────────────────
+
+dev-web:  ## Run web UI locally (not in Docker — uses npm run dev)
+	cd apps/web && npm run dev
 
 # ── Production ─────────────────────────────────────────────────────────────────
 

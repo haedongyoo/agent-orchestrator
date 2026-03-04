@@ -5,6 +5,42 @@ Update this file at the end of every meaningful dev session.
 
 ---
 
+## 2026-03-03 (Session 8) — Phase 3 PR 1: Web UI Scaffold + Auth + Layout Shell
+
+### What Was Done
+- **Backend additions**:
+  - `GET /api/workspaces` — list all workspaces for authenticated user
+  - `GET /api/workspaces/{id}/shared-email` — list shared email accounts
+  - `GET /api/workspaces/{id}/threads` — list threads for workspace (newest first)
+  - SSO callback `redirect_uri` param — redirects to `{redirect_uri}?token={jwt}` for browser-based SSO flows
+- **Next.js 15 project** (`apps/web/`):
+  - App Router, TypeScript, Tailwind CSS v4, src/ directory
+  - Manual shadcn/ui primitives (Button, Input, Label, Card, Avatar, Badge, Separator, DropdownMenu)
+  - `lib/api-client.ts` — fetch wrapper with JWT auth, auto-401 redirect
+  - `lib/types.ts` — all TypeScript interfaces matching backend schemas
+  - `lib/constants.ts` — valid tools, channels, SSO providers
+  - `providers/` — AuthProvider, WorkspaceProvider, QueryProvider, ThemeProvider
+  - Auth pages: login (email/password + 3 SSO buttons), register, SSO callback (Suspense-wrapped)
+  - Dashboard shell: sidebar with 6 nav items, header with workspace switcher + theme toggle + user menu
+  - Placeholder pages for agents, threads, approvals, vendors, settings
+  - Middleware for route protection
+- **Docker**: `web` service in docker-compose.yml, `Dockerfile` (multi-stage Node 20 Alpine)
+- **Makefile**: `dev-web`, `logs-web` targets
+- **Build**: `npm run build` passes with zero TypeScript errors
+
+### Decisions
+- Hand-wrote shadcn/ui primitives instead of using `npx shadcn-ui` CLI (avoids interactive prompts, gives us full control)
+- Tailwind CSS v4 with `@tailwindcss/postcss` plugin (no tailwind.config.js needed)
+- CSS custom properties for theming (zinc base, dark mode support)
+- localStorage for JWT storage (client-side auth guard, MVP-acceptable)
+- TanStack Query only (no Redux) — caching and server state management built in
+
+### Test Count
+- Backend: 147/147 passing (excluding pre-existing bcrypt version issue in auth tests)
+- Frontend: `npm run build` clean (all 11 routes generated successfully)
+
+---
+
 ## 2026-03-01 (Session 2) — Workspace CRUD, Agent CRUD, Subscription Update
 
 ### What Was Done

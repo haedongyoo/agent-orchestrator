@@ -305,6 +305,24 @@ translate_message(text, target_language, source_language?) -> {translated_text, 
 - [ ] Observability: traces, step-level debugging, `GET /api/tasks/{id}/trace`
 - [ ] Policy hardening: detect commitment/contract/payment language → auto-approval gate
 
+### Phase 3 — Full Web UI (in progress)
+- [x] **Web UI scaffold + auth + layout shell** (PR #13)
+  - Next.js 15 (App Router, TypeScript, `src/` dir) + Tailwind CSS v4 + shadcn/ui primitives
+  - `lib/api-client.ts` — fetch wrapper, JWT from localStorage, auto-401 redirect
+  - `lib/types.ts` — all TS interfaces matching backend Pydantic schemas
+  - `providers/` — auth (login/register/SSO/logout), workspace (list/switch), query (TanStack), theme (next-themes)
+  - Auth pages: login (email/password + 3 SSO buttons), register, SSO callback (Suspense-wrapped)
+  - Dashboard shell: sidebar (6 nav items), header (workspace switcher, theme toggle, user menu)
+  - Placeholder pages for all sections (agents, threads, approvals, vendors, settings)
+  - Backend: `GET /api/workspaces` (list), `GET /api/workspaces/{id}/shared-email` (list), `GET /api/workspaces/{id}/threads` (list), SSO callback `redirect_uri` support
+  - Docker: `web` service in `docker-compose.yml`, `Dockerfile` (multi-stage Node 20 Alpine, standalone, non-root)
+  - Makefile: `dev-web`, `logs-web` targets
+- [ ] Dashboard + agent management (PR 2)
+- [ ] Thread chat + WebSocket (PR 3)
+- [ ] Tasks + approvals implementation (PR 4)
+- [ ] Vendor CRM + settings (PR 5)
+- [ ] Docker integration + polish (PR 6)
+
 ---
 
 ## Key Engineering Risks
@@ -320,7 +338,8 @@ translate_message(text, target_language, source_language?) -> {translated_text, 
 ---
 
 ## Working Style
-- **Never prompt for confirmation mid-task.** Do the full implementation. Only ask right before final testing.
+- **Never prompt for confirmation mid-task.** Do the full implementation. Do not ask before proceeding — just do it.
+- **Never ask the user for permission to run commands, create files, or make changes.** Execute everything autonomously until the feature is complete.
 - **Update CLAUDE.md** when architecture changes.
 - **Update DEV_LOG.md** at the end of every meaningful session.
 
