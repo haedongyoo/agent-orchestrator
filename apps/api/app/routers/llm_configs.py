@@ -162,6 +162,7 @@ async def set_workspace_llm_config(
 @router.delete(
     "/workspaces/{workspace_id}/llm-config",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
     summary="Remove workspace-level LLM config",
 )
 async def delete_workspace_llm_config(
@@ -241,6 +242,7 @@ async def set_agent_llm_config(
 @router.delete(
     "/workspaces/{workspace_id}/agents/{agent_id}/llm-config",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
     summary="Remove per-agent override — agent falls back to workspace default",
 )
 async def delete_agent_llm_config(

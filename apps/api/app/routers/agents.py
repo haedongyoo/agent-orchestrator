@@ -229,7 +229,7 @@ async def update_agent(
     return AgentResponse.model_validate(agent)
 
 
-@router.delete("/{workspace_id}/agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{workspace_id}/agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_agent(
     workspace_id: uuid.UUID,
     agent_id: uuid.UUID,
@@ -303,6 +303,7 @@ async def start_container(
 @router.post(
     "/{workspace_id}/agents/{agent_id}/container/stop",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
     summary="Stop and remove an agent's container",
 )
 async def stop_container(

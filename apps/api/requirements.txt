@@ -30,6 +30,9 @@ python-telegram-bot==21.5
 aiosmtplib==3.0.1
 aioimaplib==2.0.0
 
+# LLM provider abstraction
+litellm>=1.40.0
+
 # HTTP client (for webhooks, OAuth)
 httpx==0.27.2
 
