@@ -25,6 +25,7 @@ KNOWN_TOOL_IDS = {
     "request_approval",
     "upsert_vendor",
     "schedule_followup",
+    "translate_message",
 }
 
 EXPECTED_IDS = {"negotiator", "sourcing", "contractor"}

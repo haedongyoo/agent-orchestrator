@@ -223,6 +223,7 @@ send_telegram(chat_id, text, thread_id) -> message_id
 post_web_message(thread_id, text) -> message_id
 upsert_vendor(profile) -> vendor_id
 schedule_followup(task_id, when, payload) -> schedule_id
+translate_message(text, target_language, source_language?) -> {translated_text, source_language, target_language}
 ```
 
 ---
@@ -238,7 +239,7 @@ schedule_followup(task_id, when, payload) -> schedule_id
 - [x] **Alembic initial migration** — all 13 tables in `versions/001_initial_schema.py`
 - [x] **Workspace CRUD** — `POST/GET/PUT /api/workspaces`, shared email account management
 - [x] **Agent CRUD + role prompt** — `POST/GET/PUT/DELETE /api/workspaces/{id}/agents`
-  - `allowed_tools` validated against strict allowlist (7 tools)
+  - `allowed_tools` validated against strict allowlist (8 tools)
   - `telegram_bot_token_ref` write-only (never returned in responses)
   - Partial update (PUT) — only supplied fields changed
   - Container management endpoints (start/stop) with ownership checks
@@ -288,7 +289,13 @@ schedule_followup(task_id, when, payload) -> schedule_id
   - `tasks/vendor_ops.py` — `handle_vendor_upsert` Celery task on orchestrator queue; lazy DB imports for testability
   - Agent `vendor_tool.py` — implemented: posts to orchestrator queue via Celery `send_task()` (agents never reach Postgres)
   - 143/143 tests passing (18 new vendor tests)
-- [ ] Multi-language translation tool
+- [x] **Multi-language translation tool** (PR #12)
+  - `apps/agent/agent_runtime/tools/translate_tool.py` — `translate_message()` executes locally in agent container via LiteLLM
+  - Agent-local execution (no Redis round-trip; LLM already available in container)
+  - System prompt requests JSON `{"translated_text", "detected_source_language"}`; graceful plain-text fallback
+  - `max_tokens=4096` (translations don't need 32K)
+  - Added to VALID_TOOLS allowlist (8 tools) and all 3 role templates (Negotiator, Sourcing, Contractor)
+  - 159/159 tests passing (7 new translate tests)
 - [x] **Scheduler + follow-ups** (PR #10)
   - `services/orchestrator/scheduler.py` — `Scheduler.schedule_followup()` creates Celery ETA task; `cancel_followup()` calls `celery.control.revoke()`; schedule_id = Celery async result ID
   - `tasks/followups.py` — `handle_schedule_request` Celery task (finds active task for thread, delegates to Scheduler); `fire_followup` ETA task (creates new TaskStep, dispatches to agent queue via OrchestratorRouter)

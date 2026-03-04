@@ -871,6 +871,55 @@ All Phase 1 MVP items are now complete:
 
 ---
 
+## 2026-03-03 (Session 10) — Multi-Language Translation Tool (PR #12)
+
+### What Was Done
+
+**Translation tool** (PR #12, feat/translate-tool):
+
+**`apps/agent/agent_runtime/tools/translate_tool.py` — new tool (agent-local execution):**
+- `translate_message(text, target_language, source_language="auto")` — translates text via the LLM already available in the agent container
+- Uses `litellm.acompletion()` with a translation-specific system prompt requesting JSON output: `{"translated_text", "detected_source_language"}`
+- Graceful plain-text fallback if LLM returns non-JSON response
+- `max_tokens=4096` (translations don't need the runner's 32K)
+- Returns `{"translated_text", "source_language", "target_language"}` on success; `{"error"}` on failure
+- **Key design: agent-local** — unlike all other tools (which post to orchestrator queue), translate executes inside the agent container. No DB access, no credentials, no orchestrator involvement needed.
+
+**`apps/agent/agent_runtime/tools/__init__.py`:**
+- Added `translate_message` to tool registry (sandboxed)
+- Added OpenAI function-calling schema to `TOOL_SCHEMAS` (required: `text`, `target_language`; optional: `source_language`)
+
+**`apps/api/app/routers/agents.py`:**
+- Added `"translate_message"` to `VALID_TOOLS` frozenset (now 8 tools)
+
+**`apps/api/app/services/role_templates.py`:**
+- Added `"translate_message"` to `allowed_tools` for all 3 templates (Negotiator, Sourcing, Contractor)
+- Added tool description to each template's "Available Tools" section in the role prompt
+
+**`apps/api/app/tests/test_translate.py` — 7 new tests:**
+- Successful JSON translation response
+- Plain text fallback (non-JSON LLM response)
+- Explicit source language forwarded in prompt
+- Auto source language omitted from prompt
+- LLM error returns error dict (no exception raised)
+- `max_tokens=4096` verified
+- `translate_message` in `VALID_TOOLS`
+
+### Key Decisions Made
+- **Agent-local execution** — translate is the first tool that runs inside the agent container instead of posting to the orchestrator queue. Rationale: no DB access, credentials, or orchestrator involvement needed; LLM is already available; faster (no Redis round-trip); sandbox still enforces tool permissions.
+- **JSON output with plain-text fallback** — LLM is instructed to return JSON but some models/providers may not comply; the fallback treats raw text as the translation.
+- **`max_tokens=4096`** — translations are short; no need to allocate 32K output tokens.
+
+### Test Count
+- 159/159 passing (7 new translate tests)
+
+### Next Steps
+- Email provider OAuth (Gmail/Graph)
+- Observability: traces, step-level debugging, `GET /api/tasks/{id}/trace`
+- Policy hardening: detect commitment/contract/payment language → auto-approval gate
+
+---
+
 <!-- TEMPLATE FOR NEW ENTRIES:
 
 ## YYYY-MM-DD — Session Title

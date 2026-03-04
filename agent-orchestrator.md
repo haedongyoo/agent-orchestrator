@@ -346,7 +346,7 @@ Primary use case: run 24/7 negotiation and sourcing workflows (furniture supplie
 
 ### 9.2 V1
 - Vendor/contractor CRM
-- Multi-language translation tool
+- ~~Multi-language translation tool~~ ✅ `translate_message` — agent-local LLM translation via LiteLLM
 - Robust scheduler for follow-ups
 - Email provider OAuth integration (Gmail/Graph)
 - Observability: traces, step-level debugging, replay
