@@ -14,6 +14,7 @@ import base64
 import json
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -33,7 +34,7 @@ app.include_router(threads_router, prefix="/api")
 
 # ── Factories ──────────────────────────────────────────────────────────────────
 
-def make_user(user_id: uuid.UUID | None = None) -> User:
+def make_user(user_id: Optional[uuid.UUID] = None) -> User:
     return User(
         id=user_id or uuid.uuid4(),
         email="owner@example.com",
@@ -52,7 +53,7 @@ def make_workspace(user_id: uuid.UUID) -> Workspace:
     )
 
 
-def make_thread(workspace_id: uuid.UUID, thread_id: uuid.UUID | None = None) -> Thread:
+def make_thread(workspace_id: uuid.UUID, thread_id: Optional[uuid.UUID] = None) -> Thread:
     return Thread(
         id=thread_id or uuid.uuid4(),
         workspace_id=workspace_id,
@@ -61,7 +62,7 @@ def make_thread(workspace_id: uuid.UUID, thread_id: uuid.UUID | None = None) -> 
     )
 
 
-def make_message(thread_id: uuid.UUID, created_at: datetime | None = None) -> Message:
+def make_message(thread_id: uuid.UUID, created_at: Optional[datetime] = None) -> Message:
     return Message(
         id=uuid.uuid4(),
         thread_id=thread_id,

@@ -15,6 +15,7 @@ All DB calls are intercepted via AsyncMock — no real DB required.
 """
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -34,7 +35,7 @@ app.include_router(agents_router, prefix="/api/workspaces")
 
 # ── Factories ──────────────────────────────────────────────────────────────────
 
-def make_user(user_id: uuid.UUID | None = None) -> User:
+def make_user(user_id: Optional[uuid.UUID] = None) -> User:
     return User(
         id=user_id or uuid.uuid4(),
         email="owner@example.com",
@@ -43,7 +44,7 @@ def make_user(user_id: uuid.UUID | None = None) -> User:
     )
 
 
-def make_workspace(workspace_id: uuid.UUID | None = None, user_id: uuid.UUID | None = None) -> Workspace:
+def make_workspace(workspace_id: Optional[uuid.UUID] = None, user_id: Optional[uuid.UUID] = None) -> Workspace:
     uid = user_id or uuid.uuid4()
     return Workspace(
         id=workspace_id or uuid.uuid4(),
@@ -54,7 +55,7 @@ def make_workspace(workspace_id: uuid.UUID | None = None, user_id: uuid.UUID | N
     )
 
 
-def make_agent(workspace_id: uuid.UUID, agent_id: uuid.UUID | None = None) -> Agent:
+def make_agent(workspace_id: uuid.UUID, agent_id: Optional[uuid.UUID] = None) -> Agent:
     return Agent(
         id=agent_id or uuid.uuid4(),
         workspace_id=workspace_id,

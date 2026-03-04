@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from typing import Optional
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from unittest.mock import AsyncMock, MagicMock, patch, call
@@ -55,8 +56,8 @@ def _raw_email_bytes(
     subject: str = "Hello",
     body: str = "Body text here",
     message_id: str = "<abc123@example.com>",
-    in_reply_to: str | None = None,
-    references: str | None = None,
+    in_reply_to: Optional[str] = None,
+    references: Optional[str] = None,
 ) -> bytes:
     """Build a minimal raw RFC 822 email for testing."""
     msg = MIMEMultipart("alternative")

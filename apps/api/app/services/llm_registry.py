@@ -10,7 +10,7 @@ Adding a new provider: append to PROVIDERS below.
 The `model_id` field is the full LiteLLM model string passed to litellm.acompletion().
 """
 from __future__ import annotations
-from typing import TypedDict
+from typing import Optional, TypedDict
 
 
 class ModelEntry(TypedDict):
@@ -163,11 +163,11 @@ _PROVIDER_MAP: dict[str, ProviderEntry] = {p["id"]: p for p in PROVIDERS}
 VALID_MODEL_IDS: set[str] = {m["id"] for p in PROVIDERS for m in p["models"]}
 
 
-def get_provider(provider_id: str) -> ProviderEntry | None:
+def get_provider(provider_id: str) -> Optional[ProviderEntry]:
     return _PROVIDER_MAP.get(provider_id)
 
 
-def get_provider_for_model(model_id: str) -> ProviderEntry | None:
+def get_provider_for_model(model_id: str) -> Optional[ProviderEntry]:
     for provider in PROVIDERS:
         if any(m["id"] == model_id for m in provider["models"]):
             return provider

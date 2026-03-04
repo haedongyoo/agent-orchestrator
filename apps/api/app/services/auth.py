@@ -7,6 +7,7 @@ Password auth:  passlib[bcrypt]
 Token format:   HS256 JWT, sub = str(user.id)
 """
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 import uuid
 
 from fastapi import Depends, HTTPException, status
@@ -32,7 +33,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     return _pwd_context.verify(plain, hashed)
 
 
-def create_access_token(subject: str, expires_delta: timedelta | None = None) -> str:
+def create_access_token(subject: str, expires_delta: Optional[timedelta] = None) -> str:
     delta = expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
     expire = datetime.now(timezone.utc) + delta
     return jwt.encode(
@@ -46,7 +47,7 @@ def decode_access_token(token: str) -> str:
     """Decode JWT and return subject (user ID as str). Raises HTTP 401 on any failure."""
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-        subject: str | None = payload.get("sub")
+        subject: Optional[str] = payload.get("sub")
         if not subject:
             raise ValueError("missing sub claim")
         return subject

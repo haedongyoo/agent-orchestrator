@@ -14,6 +14,7 @@ Coverage:
 """
 import uuid
 from datetime import timedelta
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -36,8 +37,8 @@ app.include_router(auth_router, prefix="/api/auth")
 def make_user(
     email: str = "test@example.com",
     password: str = "password123",
-    sso_provider: str | None = None,
-    sso_sub: str | None = None,
+    sso_provider: Optional[str] = None,
+    sso_sub: Optional[str] = None,
 ) -> User:
     user = User(
         id=uuid.uuid4(),

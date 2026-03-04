@@ -19,7 +19,7 @@ The callback endpoint verifies the state before trusting the code.
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Literal
+from typing import Literal, Optional
 
 import httpx
 from fastapi import HTTPException, status
@@ -39,7 +39,7 @@ class SSOUserInfo:
     provider: str
     sub: str          # stable, provider-unique user ID (never changes)
     email: str        # may be empty if provider blocks access — caller must validate
-    name: str | None = None
+    name: Optional[str] = None
 
 
 # ── State helpers ─────────────────────────────────────────────────────────────
@@ -235,5 +235,5 @@ def _extract_email(provider: str, data: dict) -> str:
     return ""
 
 
-def _extract_name(provider: str, data: dict) -> str | None:
+def _extract_name(provider: str, data: dict) -> Optional[str]:
     return data.get("name") or data.get("displayName")

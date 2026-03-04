@@ -100,8 +100,8 @@ def _to_response(cfg: LLMConfig) -> LLMConfigResponse:
 async def _get_config(
     db: AsyncSession,
     workspace_id: uuid.UUID,
-    agent_id: uuid.UUID | None,
-) -> LLMConfig | None:
+    agent_id: Optional[uuid.UUID],
+) -> Optional[LLMConfig]:
     result = await db.execute(
         select(LLMConfig).where(
             LLMConfig.workspace_id == workspace_id,
