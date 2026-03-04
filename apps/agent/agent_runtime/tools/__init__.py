@@ -13,6 +13,7 @@ from agent_runtime.tools.webchat_tool import post_web_message
 from agent_runtime.tools.approval_tool import request_approval
 from agent_runtime.tools.scheduler_tool import schedule_followup
 from agent_runtime.tools.vendor_tool import upsert_vendor
+from agent_runtime.tools.translate_tool import translate_message
 
 
 def build_tool_registry(
@@ -40,6 +41,7 @@ def build_tool_registry(
         "request_approval": sandboxed("request_approval", request_approval),
         "schedule_followup":sandboxed("schedule_followup",schedule_followup),
         "upsert_vendor":    sandboxed("upsert_vendor",    upsert_vendor),
+        "translate_message":sandboxed("translate_message",translate_message),
     }
 
 
@@ -151,6 +153,22 @@ TOOL_SCHEMAS = [
                     "notes":    {"type": "string"},
                 },
                 "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "translate_message",
+            "description": "Translate text into another language. Useful for understanding inbound foreign-language messages and composing outbound replies.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text":            {"type": "string", "description": "The text to translate"},
+                    "target_language": {"type": "string", "description": "Language to translate into (e.g. 'Chinese', 'Spanish', 'Korean')"},
+                    "source_language": {"type": "string", "description": "Source language (default: auto-detect)", "default": "auto"},
+                },
+                "required": ["text", "target_language"],
             },
         },
     },

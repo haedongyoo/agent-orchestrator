@@ -45,6 +45,7 @@ VALID_TOOLS = frozenset({
     "request_approval",
     "upsert_vendor",
     "schedule_followup",
+    "translate_message",
 })
 
 
