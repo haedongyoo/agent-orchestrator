@@ -7,7 +7,9 @@ SSO flow:
   GET  /sso/{provider}           → 302 redirect to provider auth page
   GET  /sso/{provider}/callback  → exchange code → JWT
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from urllib.parse import urlencode
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Optional
@@ -107,17 +109,19 @@ async def sso_redirect(provider: str) -> RedirectResponse:
     return RedirectResponse(url=url, status_code=status.HTTP_302_FOUND)
 
 
-@router.get("/sso/{provider}/callback", response_model=TokenResponse)
+@router.get("/sso/{provider}/callback")
 async def sso_callback(
     provider: str,
     code: str,
     state: str,
+    redirect_uri: Optional[str] = Query(None, description="If set, redirect to this URI with ?token= instead of returning JSON"),
     db: AsyncSession = Depends(get_db),
-) -> TokenResponse:
+):
     """
     Handle OAuth2 callback from provider.
     Verifies state → exchanges code → fetches user info → find-or-create user → JWT.
     If the user's email already exists as a password account, the SSO identity is linked.
+    If redirect_uri is provided, redirects to {redirect_uri}?token={jwt} (for browser-based flows).
     """
     if provider not in SUPPORTED_PROVIDERS:
         raise HTTPException(
@@ -158,7 +162,17 @@ async def sso_callback(
 
     await db.commit()
     await db.refresh(user)
-    return TokenResponse(access_token=create_access_token(str(user.id)))
+
+    token = create_access_token(str(user.id))
+
+    if redirect_uri:
+        sep = "&" if "?" in redirect_uri else "?"
+        return RedirectResponse(
+            url=f"{redirect_uri}{sep}{urlencode({'token': token})}",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    return TokenResponse(access_token=token)
 
 
 # ── Current User ─────────────────────────────────────────────────────────────

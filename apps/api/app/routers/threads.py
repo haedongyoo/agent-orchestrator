@@ -193,6 +193,26 @@ async def create_thread(
     return ThreadResponse.model_validate(thread)
 
 
+@router.get(
+    "/workspaces/{workspace_id}/threads",
+    response_model=list[ThreadResponse],
+)
+async def list_threads(
+    workspace_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[ThreadResponse]:
+    """List all threads for a workspace, newest first."""
+    await _get_owned_workspace_by_id(workspace_id, current_user, db)
+    result = await db.execute(
+        select(Thread)
+        .where(Thread.workspace_id == workspace_id)
+        .order_by(Thread.updated_at.desc())
+    )
+    threads = result.scalars().all()
+    return [ThreadResponse.model_validate(t) for t in threads]
+
+
 @router.get("/threads/{thread_id}", response_model=ThreadResponse)
 async def get_thread(
     thread_id: uuid.UUID,

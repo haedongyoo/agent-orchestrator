@@ -3,9 +3,11 @@ from __future__ import annotations
 Workspace router — CRUD for workspaces and shared email accounts.
 
 Endpoints:
+  GET    /api/workspaces                                   → 200 [WorkspaceResponse]
   POST   /api/workspaces                                   → 201 WorkspaceResponse
   GET    /api/workspaces/{workspace_id}                    → 200 WorkspaceResponse
   PUT    /api/workspaces/{workspace_id}                    → 200 WorkspaceResponse
+  GET    /api/workspaces/{workspace_id}/shared-email       → 200 [SharedEmailResponse]
   POST   /api/workspaces/{workspace_id}/shared-email       → 201 SharedEmailResponse
   PUT    /api/workspaces/{workspace_id}/shared-email/{id}  → 200 SharedEmailResponse
 
@@ -127,6 +129,34 @@ async def create_workspace(
     await db.commit()
     await db.refresh(workspace)
     return WorkspaceResponse.model_validate(workspace)
+
+
+@router.get("", response_model=list[WorkspaceResponse])
+async def list_workspaces(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[WorkspaceResponse]:
+    """List all workspaces owned by the authenticated user."""
+    result = await db.execute(
+        select(Workspace).where(Workspace.user_id == current_user.id).order_by(Workspace.created_at)
+    )
+    workspaces = result.scalars().all()
+    return [WorkspaceResponse.model_validate(ws) for ws in workspaces]
+
+
+@router.get("/{workspace_id}/shared-email", response_model=list[SharedEmailResponse])
+async def list_shared_emails(
+    workspace_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[SharedEmailResponse]:
+    """List all shared email accounts for the workspace."""
+    workspace = await _get_owned_workspace(workspace_id, current_user, db)
+    result = await db.execute(
+        select(SharedEmailAccount).where(SharedEmailAccount.workspace_id == workspace.id)
+    )
+    accounts = result.scalars().all()
+    return [SharedEmailResponse.model_validate(a) for a in accounts]
 
 
 @router.get("/{workspace_id}", response_model=WorkspaceResponse)

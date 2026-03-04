@@ -197,6 +197,27 @@ services:
         condition: service_healthy
     # AGENT_ID is expanded at runtime via shell form CMD in the Dockerfile
 
+  # ── Web UI (Next.js) ────────────────────────────────────────────────────────
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_WS_URL: ws://localhost:8000
+    volumes:
+      - ./apps/web/src:/app/src   # hot-reload in dev
+    networks:
+      - backend-net
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    command: npm run dev
+
   # ── One-shot migration runner ──────────────────────────────────────────────
   #
   # Run with: make migrate   (or: docker compose --profile tools run --rm migrate)
