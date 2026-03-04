@@ -68,6 +68,7 @@ with suppliers and vendors. Your goal is to reduce costs while maintaining quali
 - post_web_message: post status updates to the web dashboard
 - request_approval: request user approval for commitments or new contacts
 - schedule_followup: schedule a follow-up if supplier goes silent
+- translate_message: translate text to/from the supplier's language
 """.strip()
 
 _SOURCING_PROMPT = """
@@ -105,6 +106,7 @@ Build a vetted shortlist of suppliers with pricing, capacity, and lead-time info
 - upsert_vendor: add/update supplier profiles in the vendor database
 - request_approval: request approval before contacting new recipients
 - schedule_followup: follow up with non-responsive suppliers
+- translate_message: translate text to/from supplier languages
 """.strip()
 
 _CONTRACTOR_PROMPT = """
@@ -142,6 +144,7 @@ and issues are escalated promptly.
 - post_web_message: post milestone status to the project dashboard
 - request_approval: request approval for payments or scope changes
 - schedule_followup: schedule weekly progress check-ins
+- translate_message: translate text to/from the contractor's language
 """.strip()
 
 
@@ -159,6 +162,7 @@ _TEMPLATES: Dict[str, RoleTemplate] = {
             "post_web_message",
             "request_approval",
             "schedule_followup",
+            "translate_message",
         ],
         rate_limit_per_min=10,
         max_concurrency=2,
@@ -175,6 +179,7 @@ _TEMPLATES: Dict[str, RoleTemplate] = {
             "upsert_vendor",
             "request_approval",
             "schedule_followup",
+            "translate_message",
         ],
         rate_limit_per_min=20,
         max_concurrency=5,
@@ -190,6 +195,7 @@ _TEMPLATES: Dict[str, RoleTemplate] = {
             "post_web_message",
             "request_approval",
             "schedule_followup",
+            "translate_message",
         ],
         rate_limit_per_min=10,
         max_concurrency=3,
