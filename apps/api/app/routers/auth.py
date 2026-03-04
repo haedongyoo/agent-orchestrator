@@ -10,6 +10,8 @@ SSO flow:
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from typing import Optional
+
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,7 +50,7 @@ class UserResponse(BaseModel):
     id: str
     email: str
     is_active: bool
-    sso_provider: str | None = None
+    sso_provider: Optional[str] = None
 
 
 # ── Email / Password Auth ─────────────────────────────────────────────────────

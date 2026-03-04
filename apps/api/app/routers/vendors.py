@@ -220,6 +220,7 @@ async def update_workspace_vendor(
 @router.delete(
     "/{workspace_id}/vendors/{vendor_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
 )
 async def delete_workspace_vendor(
     workspace_id: uuid.UUID,

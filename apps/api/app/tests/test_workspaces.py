@@ -13,6 +13,7 @@ All DB calls are intercepted via AsyncMock — no real DB connection needed.
 """
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -31,7 +32,7 @@ app.include_router(ws_router, prefix="/api/workspaces")
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
-def make_user(user_id: uuid.UUID | None = None) -> User:
+def make_user(user_id: Optional[uuid.UUID] = None) -> User:
     return User(
         id=user_id or uuid.uuid4(),
         email="owner@example.com",
@@ -42,7 +43,7 @@ def make_user(user_id: uuid.UUID | None = None) -> User:
     )
 
 
-def make_workspace(workspace_id: uuid.UUID | None = None, user_id: uuid.UUID | None = None) -> Workspace:
+def make_workspace(workspace_id: Optional[uuid.UUID] = None, user_id: Optional[uuid.UUID] = None) -> Workspace:
     return Workspace(
         id=workspace_id or uuid.uuid4(),
         user_id=user_id or uuid.uuid4(),

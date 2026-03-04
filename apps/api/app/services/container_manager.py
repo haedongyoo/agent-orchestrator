@@ -134,7 +134,7 @@ class ContainerManager:
         record.stopped_at = utcnow()
         await self.db.flush()
 
-    async def restart(self, agent_id: uuid.UUID) -> AgentContainer | None:
+    async def restart(self, agent_id: uuid.UUID) -> Optional[AgentContainer]:
         """
         Restart a crashed container if auto-restart limit has not been reached.
         Returns the updated record, or None if the limit was hit.
@@ -240,7 +240,7 @@ class ContainerManager:
 
     # ── Private helpers ────────────────────────────────────────────────────────
 
-    async def _get_record(self, agent_id: uuid.UUID) -> AgentContainer | None:
+    async def _get_record(self, agent_id: uuid.UUID) -> Optional[AgentContainer]:
         result = await self.db.execute(
             select(AgentContainer).where(AgentContainer.agent_id == agent_id)
         )
@@ -317,7 +317,7 @@ class ContainerManager:
         agent_id: str,
         container_name: str,
         image: str,
-        llm_env: dict[str, str] | None = None,
+        llm_env: Optional[dict[str, str]] = None,
     ) -> str:
         """Sync Docker call — returns the full container ID."""
         try:
@@ -367,7 +367,7 @@ class ContainerManager:
             log.warning("container_manager.stop_error", container_id=container_id[:12], error=str(e))
 
     # Make this a regular method, not async, since it's a sync Docker call
-    def _inspect_container(self, container_id: str) -> tuple[str, int | None]:
+    def _inspect_container(self, container_id: str) -> tuple[str, Optional[int]]:
         """
         Sync Docker call.
         Returns (docker_status_str, exit_code_or_none).
@@ -386,7 +386,7 @@ class ContainerManager:
             return "unknown", None
 
 
-def _docker_status_to_model(docker_status: str, exit_code: int | None) -> str:
+def _docker_status_to_model(docker_status: str, exit_code: Optional[int]) -> str:
     """Map Docker container status strings to our model's status enum."""
     mapping = {
         "running": "running",

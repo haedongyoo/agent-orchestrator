@@ -198,7 +198,7 @@ async def list_steps(
     return [TaskStepResponse.model_validate(s) for s in steps]
 
 
-@router.post("/tasks/{task_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/tasks/{task_id}/cancel", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def cancel_task(
     task_id: uuid.UUID,
     current_user: User = Depends(get_current_user),

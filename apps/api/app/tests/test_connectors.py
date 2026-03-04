@@ -7,6 +7,7 @@ All DB calls are intercepted via AsyncMock — no real DB or Telegram API requir
 from __future__ import annotations
 
 import uuid
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -28,7 +29,7 @@ app.include_router(telegram_router, prefix="/api/connectors")
 
 # ── Factories ──────────────────────────────────────────────────────────────────
 
-def make_workspace(user_id: uuid.UUID | None = None) -> Workspace:
+def make_workspace(user_id: Optional[uuid.UUID] = None) -> Workspace:
     uid = user_id or uuid.uuid4()
     return Workspace(
         id=uuid.uuid4(),
@@ -53,7 +54,7 @@ def make_agent(workspace_id: uuid.UUID) -> Agent:
     )
 
 
-def make_thread(workspace_id: uuid.UUID, chat_id: str | None = None) -> Thread:
+def make_thread(workspace_id: uuid.UUID, chat_id: Optional[str] = None) -> Thread:
     return Thread(
         id=uuid.uuid4(),
         workspace_id=workspace_id,
