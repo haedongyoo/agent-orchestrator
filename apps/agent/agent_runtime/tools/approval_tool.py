@@ -1,7 +1,7 @@
 """request_approval tool.
 
 The agent uses this to ask the user's permission for sensitive actions.
-Creates a pending Approval row via the orchestrator result queue.
+Creates a pending Approval row via the orchestrator Celery queue.
 """
 from __future__ import annotations
 import structlog
@@ -21,6 +21,9 @@ async def request_approval(
     """
     Request user approval for a sensitive action.
     Suspends the current task step until the user approves or rejects.
+
+    Posts to the orchestrator queue — the orchestrator creates an Approval row,
+    sets the task status to needs_approval, and notifies the user.
     """
     log.info(
         "tool.request_approval.requested",
@@ -28,9 +31,22 @@ async def request_approval(
         approval_type=approval_type,
         reason=reason,
     )
-    # TODO: post approval_request to Redis result queue
-    # The orchestrator will create an Approval row, set task status to
-    # needs_approval, and notify the user via WebSocket/Telegram.
+
+    from celery import current_app as celery_app
+
+    celery_app.send_task(
+        "app.tasks.approval_handler.handle_approval_request",
+        kwargs={
+            "agent_id": agent_id,
+            "workspace_id": workspace_id,
+            "thread_id": thread_id,
+            "approval_type": approval_type,
+            "scope": scope,
+            "reason": reason,
+        },
+        queue="orchestrator",
+    )
+
     return {
         "status": "pending",
         "approval_type": approval_type,

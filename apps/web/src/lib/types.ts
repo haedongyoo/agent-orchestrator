@@ -19,6 +19,7 @@ export interface Workspace {
   name: string;
   timezone: string;
   language_pref: string;
+  allowed_email_domains: string[] | null;
 }
 
 export interface WorkspaceCreate {
@@ -31,6 +32,7 @@ export interface WorkspaceUpdate {
   name?: string;
   timezone?: string;
   language_pref?: string;
+  allowed_email_domains?: string[] | null;
 }
 
 // ── Shared Email ─────────────────────────────────────────────────────────────

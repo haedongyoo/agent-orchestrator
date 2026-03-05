@@ -14,6 +14,22 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
   rejected: "destructive",
 };
 
+const CONTENT_ANALYSIS_TYPES = new Set([
+  "commitment_detected",
+  "payment_detected",
+  "scope_change_detected",
+]);
+
+function RiskBadge({ level }: { level: string }) {
+  if (level === "high") {
+    return <Badge variant="destructive">High Risk</Badge>;
+  }
+  if (level === "low") {
+    return <Badge variant="secondary">Low Risk</Badge>;
+  }
+  return null;
+}
+
 export function ApprovalCard({ approval }: { approval: Approval }) {
   const [note, setNote] = useState("");
   const [showActions, setShowActions] = useState(false);
@@ -21,17 +37,24 @@ export function ApprovalCard({ approval }: { approval: Approval }) {
   const rejectAction = useRejectApproval();
 
   const isPending = approval.status === "pending";
+  const isContentAnalysis = CONTENT_ANALYSIS_TYPES.has(approval.approval_type);
+  const detectedPatterns = (approval.scope?.detected_patterns as string[] | undefined) || [];
+  const riskLevel = (approval.scope?.risk_level as string | undefined) || "";
+  const contentPreview = (approval.scope?.content_preview as string | undefined) || "";
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-base">
             {approval.approval_type.replace(/_/g, " ")}
           </CardTitle>
-          <Badge variant={statusVariant[approval.status] || "secondary"}>
-            {approval.status}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {isContentAnalysis && riskLevel && <RiskBadge level={riskLevel} />}
+            <Badge variant={statusVariant[approval.status] || "secondary"}>
+              {approval.status}
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -39,7 +62,24 @@ export function ApprovalCard({ approval }: { approval: Approval }) {
           <p className="text-sm text-[var(--muted-foreground)]">{approval.reason}</p>
         )}
 
-        {Object.keys(approval.scope).length > 0 && (
+        {isContentAnalysis && detectedPatterns.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {detectedPatterns.map((pattern) => (
+              <Badge key={pattern} variant="outline" className="text-xs">
+                {pattern}
+              </Badge>
+            ))}
+          </div>
+        )}
+
+        {isContentAnalysis && contentPreview && (
+          <div className="rounded-md bg-[var(--muted)] p-3">
+            <p className="text-xs font-medium text-[var(--muted-foreground)] mb-1">Content preview</p>
+            <p className="text-sm">{contentPreview}</p>
+          </div>
+        )}
+
+        {Object.keys(approval.scope).length > 0 && !isContentAnalysis && (
           <details>
             <summary className="cursor-pointer text-xs text-[var(--muted-foreground)]">
               Scope details

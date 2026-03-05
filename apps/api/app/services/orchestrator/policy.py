@@ -7,6 +7,7 @@ This is the authoritative location for:
   - Domain allow/deny lists
   - Outbound rate-limit enforcement
   - Recipient novelty checks (new recipient → approval required)
+  - Content analysis (commitment/payment/scope-change language detection)
 
 Nothing bypasses this module. All routing decisions go through check_route().
 """
@@ -18,6 +19,8 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.services.orchestrator.content_analyzer import ContentAnalyzer
 
 
 @dataclass
@@ -40,6 +43,9 @@ class PolicyDecision:
     approval_id: Optional[uuid.UUID] = None  # set when a new approval was created
 
 
+_analyzer = ContentAnalyzer()
+
+
 class PolicyEngine:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -55,7 +61,15 @@ class PolicyEngine:
 
         # Rule 2: Outbound email to new recipient may require approval
         if req.receiver_type == "external_email":
-            return await self._check_email_recipient(req)
+            decision = await self._check_email_recipient(req)
+            if not decision.allowed:
+                return decision
+
+        # Rule 3: Content analysis — only on agent outbound (users are trusted)
+        if req.sender_type == "agent":
+            decision = await self._check_content(req)
+            if not decision.allowed:
+                return decision
 
         # Default: allow
         return PolicyDecision(allowed=True, reason="default_allow")
@@ -113,18 +127,89 @@ class PolicyEngine:
         )
 
     async def _check_email_recipient(self, req: RouteRequest) -> PolicyDecision:
-        """Check if the recipient email is known/approved for this workspace."""
-        # TODO: query known recipients, domain allow/deny lists, volume caps
-        return PolicyDecision(allowed=True, reason="email_recipient_ok")
+        """Check if the recipient email domain is in the workspace's allowed list."""
+        from app.models.workspace import Workspace
+        from sqlalchemy import select
+
+        result = await self.db.execute(
+            select(Workspace).where(Workspace.id == req.workspace_id)
+        )
+        workspace = result.scalar_one_or_none()
+        if workspace is None:
+            return PolicyDecision(allowed=True, reason="email_recipient_ok")
+
+        allowed_domains = getattr(workspace, "allowed_email_domains", None)
+        if not allowed_domains:
+            # No allowlist configured → allow all
+            return PolicyDecision(allowed=True, reason="email_recipient_ok")
+
+        # Extract domain from receiver_id (email address)
+        email = req.receiver_id
+        domain = email.split("@")[-1].lower() if "@" in email else ""
+
+        if domain in [d.lower() for d in allowed_domains]:
+            return PolicyDecision(allowed=True, reason="email_domain_allowed")
+
+        # Domain not in allowlist — block
+        approval_id = await self._create_approval_request(
+            req,
+            approval_type="new_recipient",
+            reason=f"Email to '{email}' — domain '{domain}' not in allowlist",
+            extra_scope={"recipient": email, "domain": domain},
+        )
+        return PolicyDecision(
+            allowed=False,
+            reason="email_domain_not_allowed",
+            approval_id=approval_id,
+        )
+
+    async def _check_content(self, req: RouteRequest) -> PolicyDecision:
+        """Scan agent outbound content for commitment/payment/scope-change language."""
+        analysis = _analyzer.analyze(req.content_preview)
+
+        if analysis.risk_level == "none":
+            return PolicyDecision(allowed=True, reason="content_ok")
+
+        # Determine approval type based on what was detected
+        if analysis.has_commitment:
+            approval_type = "commitment_detected"
+        elif analysis.has_payment:
+            approval_type = "payment_detected"
+        else:
+            approval_type = "scope_change_detected"
+
+        approval_id = await self._create_approval_request(
+            req,
+            approval_type=approval_type,
+            reason=f"Content analysis: {', '.join(analysis.detected_patterns)}",
+            extra_scope={
+                "detected_patterns": analysis.detected_patterns,
+                "risk_level": analysis.risk_level,
+                "content_preview": req.content_preview,
+            },
+        )
+        return PolicyDecision(
+            allowed=False,
+            reason=f"content_blocked_{analysis.risk_level}",
+            approval_id=approval_id,
+        )
 
     async def _create_approval_request(
         self,
         req: RouteRequest,
         approval_type: str,
         reason: str,
+        extra_scope: Optional[dict] = None,
     ) -> uuid.UUID:
         """Persist a pending Approval row and return its id."""
         from app.models.approval import Approval
+
+        scope = {
+            "agents": [str(req.sender_id), req.receiver_id],
+            "thread_id": str(req.thread_id),
+        }
+        if extra_scope:
+            scope.update(extra_scope)
 
         # Explicitly generate id so it is available before DB flush
         approval_id = uuid.uuid4()
@@ -135,10 +220,7 @@ class PolicyEngine:
             task_id=req.task_id,
             approval_type=approval_type,
             requested_by=req.sender_id,
-            scope={
-                "agents": [str(req.sender_id), req.receiver_id],
-                "thread_id": str(req.thread_id),
-            },
+            scope=scope,
             reason=reason,
         )
         self.db.add(approval)

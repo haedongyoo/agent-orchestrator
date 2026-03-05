@@ -19,6 +19,9 @@ export const APPROVAL_TYPES = [
   "send_email",
   "new_recipient",
   "share_info",
+  "commitment_detected",
+  "payment_detected",
+  "scope_change_detected",
   "other",
 ] as const;
 

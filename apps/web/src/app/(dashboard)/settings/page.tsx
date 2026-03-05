@@ -19,6 +19,9 @@ export default function SettingsPage() {
   const [name, setName] = useState(workspace?.name || "");
   const [timezone, setTimezone] = useState(workspace?.timezone || "UTC");
   const [langPref, setLangPref] = useState(workspace?.language_pref || "en");
+  const [emailDomains, setEmailDomains] = useState(
+    workspace?.allowed_email_domains?.join(", ") || ""
+  );
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
@@ -75,11 +78,41 @@ export default function SettingsPage() {
             </div>
           </div>
           <Button
-            onClick={() => updateWorkspace.mutate({ name, timezone, language_pref: langPref })}
+            onClick={() => updateWorkspace.mutate({
+              name,
+              timezone,
+              language_pref: langPref,
+              allowed_email_domains: emailDomains.trim()
+                ? emailDomains.split(",").map((d) => d.trim()).filter(Boolean)
+                : null,
+            })}
             disabled={updateWorkspace.isPending}
           >
             {updateWorkspace.isPending ? "Saving..." : "Save Changes"}
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Email Domain Allowlist</CardTitle>
+          <CardDescription>
+            Restrict agent outbound emails to specific domains. Leave empty to allow all.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="domains">Allowed Domains (comma-separated)</Label>
+            <Input
+              id="domains"
+              value={emailDomains}
+              onChange={(e) => setEmailDomains(e.target.value)}
+              placeholder="example.com, acme.org"
+            />
+            <p className="text-xs text-[var(--muted-foreground)]">
+              Agents will need approval to email addresses outside these domains.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

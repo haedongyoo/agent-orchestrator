@@ -79,11 +79,19 @@ class TestA2APolicy:
         assert decision.allowed is True
 
     @pytest.mark.asyncio
-    async def test_agent_to_email_allowed_by_default(self, engine):
+    async def test_agent_to_email_allowed_by_default(self, engine, mock_db):
+        # Mock workspace with no domain allowlist
+        ws_mock = MagicMock()
+        ws_mock.allowed_email_domains = None
+        ws_result = MagicMock()
+        ws_result.scalar_one_or_none.return_value = ws_mock
+        mock_db.execute = AsyncMock(return_value=ws_result)
+
         req = make_route(
             sender_type="agent",
             receiver_type="external_email",
             receiver_id="vendor@example.com",
+            content_preview="Here is the catalog.",
         )
         decision = await engine.check_route(req)
         assert decision.allowed is True
