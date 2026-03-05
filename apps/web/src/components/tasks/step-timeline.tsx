@@ -12,6 +12,11 @@ const statusColors: Record<string, string> = {
   failed: "bg-red-500",
 };
 
+function formatTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return String(n);
+}
+
 export function StepTimeline({ taskId }: { taskId: string }) {
   const { data: steps, isLoading } = useTaskSteps(taskId);
 
@@ -36,6 +41,9 @@ export function StepTimeline({ taskId }: { taskId: string }) {
 }
 
 function StepCard({ step }: { step: TaskStep }) {
+  const hasDuration = step.duration_ms != null;
+  const hasTokens = step.input_tokens != null || step.output_tokens != null;
+
   return (
     <div className="relative flex gap-4 pl-8">
       {/* Dot */}
@@ -56,10 +64,32 @@ function StepCard({ step }: { step: TaskStep }) {
               >
                 {step.status}
               </Badge>
+              {hasDuration && (
+                <span className="text-xs text-[var(--muted-foreground)]">
+                  {(step.duration_ms! / 1000).toFixed(1)}s
+                </span>
+              )}
+              {hasTokens && (
+                <span className="text-xs text-[var(--muted-foreground)]">
+                  {formatTokens(step.input_tokens || 0)} in / {formatTokens(step.output_tokens || 0)} out
+                </span>
+              )}
+              {step.iterations != null && (
+                <span className="text-xs text-[var(--muted-foreground)]">
+                  {step.iterations} iter
+                </span>
+              )}
             </div>
-            <span className="text-xs text-[var(--muted-foreground)]">
-              {new Date(step.created_at).toLocaleTimeString()}
-            </span>
+            <div className="flex items-center gap-2">
+              {step.agent_model && (
+                <span className="text-[10px] text-[var(--muted-foreground)]">
+                  {step.agent_model}
+                </span>
+              )}
+              <span className="text-xs text-[var(--muted-foreground)]">
+                {new Date(step.created_at).toLocaleTimeString()}
+              </span>
+            </div>
           </div>
 
           {step.tool_call && (
