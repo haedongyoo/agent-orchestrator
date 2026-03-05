@@ -19,10 +19,11 @@ celery_app = Celery(
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
     include=[
-        "app.tasks.step_results",   # process results coming back from agents
-        "app.tasks.inbox_poll",     # periodic IMAP polling
-        "app.tasks.followups",      # scheduled follow-up dispatching
-        "app.tasks.vendor_ops",     # vendor/contractor CRM upserts from agents
+        "app.tasks.step_results",       # process results coming back from agents
+        "app.tasks.inbox_poll",         # periodic IMAP polling
+        "app.tasks.followups",          # scheduled follow-up dispatching
+        "app.tasks.vendor_ops",         # vendor/contractor CRM upserts from agents
+        "app.tasks.approval_handler",   # agent approval requests
     ],
 )
 

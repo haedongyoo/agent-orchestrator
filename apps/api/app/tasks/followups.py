@@ -157,7 +157,7 @@ async def _dispatch_followup(
 
         # Dispatch to agent's Celery queue
         orch = OrchestratorRouter(db)
-        orch.enqueue_existing_step(step, workspace_id=uuid.UUID(workspace_id))
+        await orch.enqueue_existing_step(step, workspace_id=uuid.UUID(workspace_id), thread_id=uuid.UUID(thread_id))
 
         await db.commit()
 

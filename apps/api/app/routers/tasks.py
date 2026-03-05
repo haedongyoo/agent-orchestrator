@@ -160,7 +160,7 @@ async def create_task(
 
         orch = OrchestratorRouter(db)
         for step in steps:
-            orch.enqueue_existing_step(step, workspace_id=task.workspace_id)
+            await orch.enqueue_existing_step(step, workspace_id=task.workspace_id, thread_id=thread_id)
 
         task.status = "running"
 
