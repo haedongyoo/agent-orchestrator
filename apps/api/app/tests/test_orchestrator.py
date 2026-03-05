@@ -7,9 +7,13 @@ Verifies that:
   - Blocked routes return delivery=False + approval_id
   - Agent routes with a task_id create a TaskStep and enqueue it
   - dispatch_step() creates a TaskStep record + calls _enqueue_to_agent
+  - _enqueue_to_agent sends correct task name and payload format
+  - enqueue_existing_step loads agent context and thread history
+  - _load_thread_history returns correct format
 """
 from __future__ import annotations
 
+import sys
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -164,7 +168,9 @@ class TestDispatchStep:
     @pytest.mark.asyncio
     async def test_dispatch_step_adds_task_step(self, orch, mock_db):
         """dispatch_step creates a TaskStep DB row."""
-        with patch.object(orch, "_enqueue_to_agent") as mock_enqueue:
+        with patch.object(orch, "_enqueue_to_agent") as mock_enqueue, \
+             patch.object(orch, "_load_agent", AsyncMock(return_value=None)), \
+             patch.object(orch, "_load_thread_history", AsyncMock(return_value=[])):
             await orch.dispatch_step(
                 task_id=uuid.uuid4(),
                 agent_id=uuid.uuid4(),
@@ -182,24 +188,31 @@ class TestDispatchStep:
         agent_id = uuid.uuid4()
         task_id = uuid.uuid4()
         workspace_id = uuid.uuid4()
+        thread_id = uuid.uuid4()
 
-        with patch.object(orch, "_enqueue_to_agent") as mock_enqueue:
+        with patch.object(orch, "_enqueue_to_agent") as mock_enqueue, \
+             patch.object(orch, "_load_agent", AsyncMock(return_value=None)), \
+             patch.object(orch, "_load_thread_history", AsyncMock(return_value=[])):
             await orch.dispatch_step(
                 task_id=task_id,
                 agent_id=agent_id,
                 step_type="plan",
                 workspace_id=workspace_id,
+                thread_id=thread_id,
             )
 
         call_kwargs = mock_enqueue.call_args.kwargs
         assert call_kwargs["agent_id"] == agent_id
         assert call_kwargs["task_id"] == task_id
         assert call_kwargs["workspace_id"] == workspace_id
+        assert call_kwargs["thread_id"] == thread_id
 
     @pytest.mark.asyncio
     async def test_dispatch_step_returns_step_id(self, orch):
         """dispatch_step returns a UUID that can be used to track the step."""
-        with patch.object(orch, "_enqueue_to_agent"):
+        with patch.object(orch, "_enqueue_to_agent"), \
+             patch.object(orch, "_load_agent", AsyncMock(return_value=None)), \
+             patch.object(orch, "_load_thread_history", AsyncMock(return_value=[])):
             step_id = await orch.dispatch_step(
                 task_id=uuid.uuid4(),
                 agent_id=uuid.uuid4(),
@@ -221,7 +234,9 @@ class TestDispatchStep:
 
         mock_db.add.side_effect = capture_add
 
-        with patch.object(orch, "_enqueue_to_agent"):
+        with patch.object(orch, "_enqueue_to_agent"), \
+             patch.object(orch, "_load_agent", AsyncMock(return_value=None)), \
+             patch.object(orch, "_load_thread_history", AsyncMock(return_value=[])):
             await orch.dispatch_step(
                 task_id=uuid.uuid4(),
                 agent_id=uuid.uuid4(),
@@ -233,11 +248,54 @@ class TestDispatchStep:
         assert added_steps, "No TaskStep was added"
         assert added_steps[0].tool_call is None
 
+    @pytest.mark.asyncio
+    async def test_dispatch_step_includes_role_prompt_and_tools(self, orch):
+        """dispatch_step loads agent context and includes it in the payload."""
+        agent_id = uuid.uuid4()
+        mock_agent = MagicMock()
+        mock_agent.role_prompt = "You are a negotiator"
+        mock_agent.allowed_tools = ["send_email", "upsert_vendor"]
+
+        with patch.object(orch, "_enqueue_to_agent") as mock_enqueue, \
+             patch.object(orch, "_load_agent", AsyncMock(return_value=mock_agent)), \
+             patch.object(orch, "_load_thread_history", AsyncMock(return_value=[{"role": "user", "content": "hi"}])):
+            await orch.dispatch_step(
+                task_id=uuid.uuid4(),
+                agent_id=agent_id,
+                step_type="message",
+                content="negotiate",
+                workspace_id=uuid.uuid4(),
+                thread_id=uuid.uuid4(),
+            )
+
+        call_kwargs = mock_enqueue.call_args.kwargs
+        assert call_kwargs["role_prompt"] == "You are a negotiator"
+        assert call_kwargs["allowed_tools"] == ["send_email", "upsert_vendor"]
+        assert call_kwargs["thread_history"] == [{"role": "user", "content": "hi"}]
+
+    @pytest.mark.asyncio
+    async def test_dispatch_step_no_agent_uses_defaults(self, orch):
+        """dispatch_step falls back to empty role_prompt and tools when agent not found."""
+        with patch.object(orch, "_enqueue_to_agent") as mock_enqueue, \
+             patch.object(orch, "_load_agent", AsyncMock(return_value=None)), \
+             patch.object(orch, "_load_thread_history", AsyncMock(return_value=[])):
+            await orch.dispatch_step(
+                task_id=uuid.uuid4(),
+                agent_id=uuid.uuid4(),
+                step_type="plan",
+                workspace_id=uuid.uuid4(),
+            )
+
+        call_kwargs = mock_enqueue.call_args.kwargs
+        assert call_kwargs["role_prompt"] == ""
+        assert call_kwargs["allowed_tools"] == []
+
 
 # ── enqueue_existing_step() tests ─────────────────────────────────────────────
 
 class TestEnqueueExistingStep:
-    def test_enqueue_existing_step_calls_enqueue(self, orch):
+    @pytest.mark.asyncio
+    async def test_enqueue_existing_step_calls_enqueue(self, orch):
         """enqueue_existing_step passes step attributes to _enqueue_to_agent."""
         step = MagicMock()
         step.agent_id = uuid.uuid4()
@@ -245,14 +303,185 @@ class TestEnqueueExistingStep:
         step.task_id = uuid.uuid4()
         step.tool_call = {"content": "hello"}
         workspace_id = uuid.uuid4()
+        thread_id = uuid.uuid4()
 
-        with patch.object(orch, "_enqueue_to_agent") as mock_enqueue:
-            orch.enqueue_existing_step(step, workspace_id=workspace_id)
+        mock_agent = MagicMock()
+        mock_agent.role_prompt = "You are a negotiator"
+        mock_agent.allowed_tools = ["send_email"]
+
+        with patch.object(orch, "_enqueue_to_agent") as mock_enqueue, \
+             patch.object(orch, "_load_agent", AsyncMock(return_value=mock_agent)), \
+             patch.object(orch, "_load_thread_history", AsyncMock(return_value=[])):
+            await orch.enqueue_existing_step(step, workspace_id=workspace_id, thread_id=thread_id)
 
         mock_enqueue.assert_called_once_with(
             agent_id=step.agent_id,
             step_id=step.id,
             task_id=step.task_id,
             workspace_id=workspace_id,
+            thread_id=thread_id,
+            role_prompt="You are a negotiator",
+            allowed_tools=["send_email"],
+            thread_history=[],
             payload={"content": "hello"},
         )
+
+    @pytest.mark.asyncio
+    async def test_enqueue_existing_step_no_thread_id(self, orch):
+        """enqueue_existing_step works without thread_id."""
+        step = MagicMock()
+        step.agent_id = uuid.uuid4()
+        step.id = uuid.uuid4()
+        step.task_id = uuid.uuid4()
+        step.tool_call = None
+        workspace_id = uuid.uuid4()
+
+        with patch.object(orch, "_enqueue_to_agent") as mock_enqueue, \
+             patch.object(orch, "_load_agent", AsyncMock(return_value=None)):
+            await orch.enqueue_existing_step(step, workspace_id=workspace_id)
+
+        call_kwargs = mock_enqueue.call_args.kwargs
+        assert call_kwargs["thread_id"] is None
+        assert call_kwargs["thread_history"] == []
+
+
+# ── _enqueue_to_agent() tests ─────────────────────────────────────────────────
+
+class TestEnqueueToAgent:
+    def test_enqueue_uses_correct_task_name(self, orch):
+        """_enqueue_to_agent sends task name 'agent.run_step' (not 'agent_runtime.tasks.run_step')."""
+        agent_id = uuid.uuid4()
+        mock_celery = MagicMock()
+        mock_worker = MagicMock(celery_app=mock_celery)
+
+        with patch.dict(sys.modules, {"app.worker": mock_worker}):
+            orch._enqueue_to_agent(
+                agent_id=agent_id,
+                step_id=uuid.uuid4(),
+                task_id=uuid.uuid4(),
+                workspace_id=uuid.uuid4(),
+                thread_id=uuid.uuid4(),
+                role_prompt="test prompt",
+                allowed_tools=["send_email"],
+                thread_history=[],
+                payload={},
+            )
+
+        mock_celery.send_task.assert_called_once()
+        call_args = mock_celery.send_task.call_args
+        assert call_args[0][0] == "agent.run_step"
+        assert call_args.kwargs["queue"] == f"agent.{agent_id}"
+
+    def test_enqueue_sends_args_not_kwargs(self, orch):
+        """_enqueue_to_agent sends payload as args=[dict] not kwargs={}."""
+        mock_celery = MagicMock()
+        mock_worker = MagicMock(celery_app=mock_celery)
+
+        with patch.dict(sys.modules, {"app.worker": mock_worker}):
+            orch._enqueue_to_agent(
+                agent_id=uuid.uuid4(),
+                step_id=uuid.uuid4(),
+                task_id=uuid.uuid4(),
+                workspace_id=uuid.uuid4(),
+                thread_id=uuid.uuid4(),
+                role_prompt="prompt",
+                allowed_tools=["send_email"],
+                thread_history=[{"role": "user", "content": "hi"}],
+                payload={"content": "hello"},
+            )
+
+        call_args = mock_celery.send_task.call_args
+        # Should use args=, not kwargs=
+        args_list = call_args.kwargs.get("args")
+        assert args_list is not None, "Should use args= parameter"
+        assert len(args_list) == 1
+        payload_dict = args_list[0]
+        assert "role_prompt" in payload_dict
+        assert "allowed_tools" in payload_dict
+        assert "thread_history" in payload_dict
+        assert payload_dict["role_prompt"] == "prompt"
+        assert payload_dict["allowed_tools"] == ["send_email"]
+        assert payload_dict["thread_history"] == [{"role": "user", "content": "hi"}]
+
+    def test_enqueue_payload_includes_all_required_fields(self, orch):
+        """Verify the payload dict has all fields expected by TaskStepPayload."""
+        step_id = uuid.uuid4()
+        task_id = uuid.uuid4()
+        agent_id = uuid.uuid4()
+        workspace_id = uuid.uuid4()
+        thread_id = uuid.uuid4()
+        mock_celery = MagicMock()
+        mock_worker = MagicMock(celery_app=mock_celery)
+
+        with patch.dict(sys.modules, {"app.worker": mock_worker}):
+            orch._enqueue_to_agent(
+                agent_id=agent_id,
+                step_id=step_id,
+                task_id=task_id,
+                workspace_id=workspace_id,
+                thread_id=thread_id,
+                role_prompt="You are a sourcing agent",
+                allowed_tools=["send_email", "upsert_vendor"],
+                thread_history=[{"role": "user", "content": "find suppliers"}],
+                payload={"content": "search", "metadata": {}},
+            )
+
+        payload = mock_celery.send_task.call_args.kwargs["args"][0]
+        assert payload["step_id"] == str(step_id)
+        assert payload["task_id"] == str(task_id)
+        assert payload["agent_id"] == str(agent_id)
+        assert payload["workspace_id"] == str(workspace_id)
+        assert payload["thread_id"] == str(thread_id)
+        assert payload["role_prompt"] == "You are a sourcing agent"
+        assert payload["allowed_tools"] == ["send_email", "upsert_vendor"]
+        assert payload["thread_history"] == [{"role": "user", "content": "find suppliers"}]
+        assert payload["tool_call"] == {"content": "search", "metadata": {}}
+
+
+# ── _load_thread_history() tests ──────────────────────────────────────────────
+
+class TestLoadThreadHistory:
+    @pytest.mark.asyncio
+    async def test_load_thread_history_maps_sender_types(self, orch, mock_db):
+        """user and external messages become role=user, agent/system become role=assistant."""
+        thread_id = uuid.uuid4()
+
+        msg1 = MagicMock()
+        msg1.sender_type = "user"
+        msg1.content = "Hello"
+        msg1.created_at = "2024-01-01T00:00:00"
+
+        msg2 = MagicMock()
+        msg2.sender_type = "agent"
+        msg2.content = "Hi there"
+        msg2.created_at = "2024-01-01T00:00:01"
+
+        msg3 = MagicMock()
+        msg3.sender_type = "external"
+        msg3.content = "I'm a vendor"
+        msg3.created_at = "2024-01-01T00:00:02"
+
+        # Mock returns messages in DESC order (newest first)
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [msg3, msg2, msg1]
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        history = await orch._load_thread_history(thread_id)
+
+        # Should be reversed to oldest-first
+        assert len(history) == 3
+        assert history[0] == {"role": "user", "content": "Hello"}
+        assert history[1] == {"role": "assistant", "content": "Hi there"}
+        assert history[2] == {"role": "user", "content": "I'm a vendor"}
+
+    @pytest.mark.asyncio
+    async def test_load_thread_history_empty(self, orch, mock_db):
+        """Empty thread returns empty list."""
+        thread_id = uuid.uuid4()
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        history = await orch._load_thread_history(thread_id)
+        assert history == []

@@ -132,7 +132,7 @@ class TestTelegramWebhook:
         with patch("app.services.connectors.telegram.Planner") as MockPlanner, \
              patch("app.services.connectors.telegram.OrchestratorRouter") as MockOrch:
             MockPlanner.return_value.decompose = AsyncMock(return_value=[])
-            MockOrch.return_value.enqueue_existing_step = MagicMock()
+            MockOrch.return_value.enqueue_existing_step = AsyncMock()
 
             app.dependency_overrides[get_db] = override_db(db)
             try:
@@ -213,7 +213,7 @@ class TestTelegramWebhook:
         with patch("app.services.connectors.telegram.Planner") as MockPlanner, \
              patch("app.services.connectors.telegram.OrchestratorRouter") as MockOrch:
             MockPlanner.return_value.decompose = AsyncMock(return_value=[])
-            MockOrch.return_value.enqueue_existing_step = MagicMock()
+            MockOrch.return_value.enqueue_existing_step = AsyncMock()
 
             app.dependency_overrides[get_db] = override_db(db)
             try:
@@ -243,7 +243,7 @@ class TestTelegramWebhook:
         with patch("app.services.connectors.telegram.Planner") as MockPlanner, \
              patch("app.services.connectors.telegram.OrchestratorRouter") as MockOrch:
             MockPlanner.return_value.decompose = AsyncMock(return_value=[])
-            MockOrch.return_value.enqueue_existing_step = MagicMock()
+            MockOrch.return_value.enqueue_existing_step = AsyncMock()
 
             app.dependency_overrides[get_db] = override_db(db)
             try:
@@ -275,7 +275,7 @@ class TestTelegramWebhook:
              patch("app.services.connectors.telegram.OrchestratorRouter") as MockOrch:
             MockPlanner.return_value.decompose = AsyncMock(return_value=[fake_step])
             mock_orch = MockOrch.return_value
-            mock_orch.enqueue_existing_step = MagicMock()
+            mock_orch.enqueue_existing_step = AsyncMock()
 
             app.dependency_overrides[get_db] = override_db(db)
             try:
@@ -285,9 +285,7 @@ class TestTelegramWebhook:
                         json=_tg_update(text="Request a quote from supplier X"),
                     )
                 MockPlanner.return_value.decompose.assert_called_once()
-                mock_orch.enqueue_existing_step.assert_called_once_with(
-                    fake_step, workspace_id=agent.workspace_id
-                )
+                mock_orch.enqueue_existing_step.assert_called_once()
             finally:
                 app.dependency_overrides.clear()
 

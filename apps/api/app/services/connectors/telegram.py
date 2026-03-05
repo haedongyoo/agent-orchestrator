@@ -119,7 +119,7 @@ async def telegram_webhook(
 
     orch = OrchestratorRouter(db)
     for step in steps:
-        orch.enqueue_existing_step(step, workspace_id=agent.workspace_id)
+        await orch.enqueue_existing_step(step, workspace_id=agent.workspace_id, thread_id=thread.id)
 
     task.status = "running"
     await db.commit()

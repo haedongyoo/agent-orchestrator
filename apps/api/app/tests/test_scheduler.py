@@ -225,7 +225,7 @@ class TestDispatchFollowup:
         active_task.id = uuid.UUID(task_id)
 
         mock_orch = MagicMock()
-        mock_orch.enqueue_existing_step = MagicMock()
+        mock_orch.enqueue_existing_step = AsyncMock()
 
         mock_db = AsyncMock()
         mock_db.get = AsyncMock(return_value=active_task)
