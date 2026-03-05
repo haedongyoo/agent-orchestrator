@@ -246,8 +246,10 @@ async def delete_agent(
 
 
 # ── Container management endpoints ─────────────────────────────────────────────
-# ContainerManager is imported lazily to keep the unit test suite free of the
-# Docker SDK dependency.
+# Container start/stop are dispatched to the orchestrator-worker via Celery,
+# because the API container does NOT have the Docker socket mounted.
+# The orchestrator-worker has /var/run/docker.sock and runs ContainerManager.
+# Status reads from the AgentContainer table (updated every 30s by beat task).
 
 @router.get(
     "/{workspace_id}/agents/{agent_id}/container",
@@ -260,14 +262,34 @@ async def get_container_status(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ContainerStatusResponse:
-    """Returns the current Docker container status (updated every 30s by monitor)."""
-    from app.services.container_manager import ContainerManager  # lazy import
+    """Returns the current container status from DB (updated every 30s by monitor)."""
     workspace = await _get_owned_workspace(workspace_id, current_user, db)
     await _get_agent(workspace, agent_id, db)  # ownership check
 
-    manager = ContainerManager(db=db)
-    info = await manager.get_status(agent_id)
-    return ContainerStatusResponse(agent_id=agent_id, **info)
+    # Read from AgentContainer table — no Docker socket needed
+    from app.models.container import AgentContainer
+    result = await db.execute(
+        select(AgentContainer).where(AgentContainer.agent_id == agent_id)
+    )
+    record = result.scalar_one_or_none()
+
+    if not record:
+        return ContainerStatusResponse(agent_id=agent_id, status="no_container")
+
+    return ContainerStatusResponse(
+        agent_id=agent_id,
+        status=record.status,
+        container_id=record.container_id,
+        container_name=record.container_name,
+        image=record.image,
+        started_at=record.started_at.isoformat() if record.started_at else None,
+        stopped_at=record.stopped_at.isoformat() if record.stopped_at else None,
+        last_status_check_at=(
+            record.last_status_check_at.isoformat() if record.last_status_check_at else None
+        ),
+        exit_code=record.exit_code,
+        restart_count=record.restart_count,
+    )
 
 
 @router.post(
@@ -282,29 +304,28 @@ async def start_container(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ContainerStatusResponse:
-    """Spawn a new Docker container for the agent (stops existing one first)."""
-    from app.services.container_manager import ContainerManager  # lazy import
+    """Dispatch container start to orchestrator-worker (which has Docker socket)."""
     workspace = await _get_owned_workspace(workspace_id, current_user, db)
     agent = await _get_agent(workspace, agent_id, db)
 
     if not agent.is_enabled:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Agent is disabled — enable it first")
 
-    manager = ContainerManager(db=db)
-    try:
-        await manager.spawn(agent)
-        await db.commit()
-    except RuntimeError as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+    # Dispatch to orchestrator-worker via Celery (it has Docker socket)
+    from app.worker import celery_app
+    celery_app.send_task(
+        "app.tasks.container_ops.start_agent_container",
+        args=[str(agent_id)],
+        queue="orchestrator",
+    )
 
-    info = await manager.get_status(agent_id)
-    return ContainerStatusResponse(agent_id=agent_id, **info)
+    return ContainerStatusResponse(agent_id=agent_id, status="starting")
 
 
 @router.post(
     "/{workspace_id}/agents/{agent_id}/container/stop",
-    status_code=status.HTTP_204_NO_CONTENT,
-    response_model=None,
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ContainerStatusResponse,
     summary="Stop and remove an agent's container",
 )
 async def stop_container(
@@ -312,12 +333,17 @@ async def stop_container(
     agent_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> None:
-    """Stop and remove the Docker container for an agent."""
-    from app.services.container_manager import ContainerManager  # lazy import
+) -> ContainerStatusResponse:
+    """Dispatch container stop to orchestrator-worker (which has Docker socket)."""
     workspace = await _get_owned_workspace(workspace_id, current_user, db)
     await _get_agent(workspace, agent_id, db)  # ownership check
 
-    manager = ContainerManager(db=db)
-    await manager.stop(agent_id)
-    await db.commit()
+    # Dispatch to orchestrator-worker via Celery
+    from app.worker import celery_app
+    celery_app.send_task(
+        "app.tasks.container_ops.stop_agent_container",
+        args=[str(agent_id)],
+        queue="orchestrator",
+    )
+
+    return ContainerStatusResponse(agent_id=agent_id, status="stopping")
