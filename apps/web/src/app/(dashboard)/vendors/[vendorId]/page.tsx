@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import { useVendor, useDeleteVendor } from "@/hooks/use-vendors";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

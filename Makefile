@@ -104,8 +104,11 @@ prod-down:  ## Stop production stack
 prod-migrate:  ## Run Alembic migrations against production DB
 	docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
 
-prod-logs:  ## Tail production API + worker logs
-	docker compose -f docker-compose.prod.yml logs -f api orchestrator-worker orchestrator-beat
+prod-logs:  ## Tail production API + worker + web logs
+	docker compose -f docker-compose.prod.yml logs -f api orchestrator-worker orchestrator-beat web
+
+prod-logs-web:  ## Tail production web UI logs
+	docker compose -f docker-compose.prod.yml logs -f web
 
 # ── Cleanup ────────────────────────────────────────────────────────────────────
 

@@ -5,6 +5,57 @@ Update this file at the end of every meaningful dev session.
 
 ---
 
+## 2026-03-04 (Session 11) — Phase 3 PRs 2-6: Complete Web UI
+
+### What Was Done
+
+**PR 2: Dashboard + Agent Management** (merged):
+- Dashboard overview page with summary cards (active agents, open threads, vendors), agent grid, recent threads
+- Agent list page with grid/table toggle, search filter
+- Create agent page with template picker (3 templates) + agent form (name, role prompt, tools, rate limit, concurrency, telegram token)
+- Agent detail page with tabs: Overview, LLM Config (provider/model/key/test), Container (status badge, start/stop, 10s auto-refresh)
+- Edit agent page with form in edit mode
+
+**PR 3: Thread Chat + WebSocket** (merged):
+- Thread list page with inline "New Thread" dialog
+- Chat view with message history (cursor pagination via useInfiniteQuery), auto-scroll to bottom
+- WebSocket hook (`use-websocket.ts`) — connects to `ws://host/ws/threads/{id}`, handles `new_message`, `task_status`, `approval_requested` events, merges into TanStack Query cache
+- Message bubble styling: user (right), agent (left), system (centered), channel badges
+- Message input with Ctrl+Enter send support
+
+**PR 4: Tasks + Approvals** (merged):
+- Backend: replaced 501 stubs in `routers/approvals.py` with real implementations (list/approve/reject with ownership checks, 409 on already-decided)
+- Task detail page with objective, status, cancel button, step timeline (vertical, auto-refresh 5s), expandable tool_call/result JSON
+- Approvals page with tabs (All/Pending/Approved/Rejected), approval cards with approve/reject + notes
+
+**PR 5: Vendor CRM + Settings** (merged):
+- Vendor list page with data table, search, category filter
+- Create/view vendor pages with full form
+- Workspace settings page (name, timezone, language)
+- Email settings page (list/add shared email accounts with provider type, credentials, from alias, signature template)
+
+**PR 6: Docker + Polish** (merged):
+- `apps/web/Dockerfile` — multi-stage Node 20 Alpine, standalone output, non-root user (created in PR 1)
+- `docker-compose.prod.yml` — added `web` service (port 3000, depends on api)
+- `Makefile` — added `prod-logs-web` target, updated `prod-logs` to include web
+- Loading skeletons on all list pages (dashboard, agents, threads, approvals, vendors)
+- Toast notification system (`ToastProvider` + `useToast` with auto-dismiss 4s)
+- `ErrorBoundary` class component with retry button, wrapping dashboard content
+- Responsive sidebar: mobile hamburger menu + overlay + slide-in drawer animation
+- Ctrl+K command palette: navigation + quick actions, keyboard nav (arrow keys + Enter)
+- Fixed unused import warnings in vendor pages
+- Build: `npm run build` — zero errors, zero warnings, 19 routes
+
+### Test Count
+- Backend: 153/159 passing (6 auth failures are pre-existing bcrypt version issue)
+- Frontend: `npm run build` clean — all 19 routes generated successfully
+
+### Next Steps
+- Phase 3 complete (all 6 PRs merged)
+- Remaining Phase 2 carry-overs: Email OAuth, Observability, Policy hardening
+
+---
+
 ## 2026-03-03 (Session 8) — Phase 3 PR 1: Web UI Scaffold + Auth + Layout Shell
 
 ### What Was Done

@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useApprovals } from "@/hooks/use-approvals";
 import { useWorkspace } from "@/providers/workspace-provider";
 import { ApprovalCard } from "@/components/approvals/approval-card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { CheckCircle } from "lucide-react";
 
 type TabStatus = "pending" | "approved" | "rejected" | undefined;
@@ -55,8 +57,17 @@ export default function ApprovalsPage() {
       </div>
 
       {isLoading ? (
-        <div className="py-20 text-center text-sm text-[var(--muted-foreground)]">
-          Loading approvals...
+        <div className="grid gap-4 md:grid-cols-2">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader><Skeleton className="h-5 w-40" /></CardHeader>
+              <CardContent className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-8 w-24 mt-2" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
       ) : approvals?.length === 0 ? (
         <div className="py-20 text-center">

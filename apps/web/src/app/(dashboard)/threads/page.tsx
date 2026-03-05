@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Thread, ThreadCreate } from "@/lib/types";
 
 export default function ThreadsPage() {
@@ -82,7 +83,11 @@ export default function ThreadsPage() {
       )}
 
       {isLoading ? (
-        <div className="py-20 text-center text-sm text-[var(--muted-foreground)]">Loading threads...</div>
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-14 w-full rounded-lg" />
+          ))}
+        </div>
       ) : threads?.length === 0 ? (
         <div className="py-20 text-center">
           <MessageSquare className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)]" />

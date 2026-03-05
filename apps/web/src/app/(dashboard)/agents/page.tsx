@@ -9,6 +9,8 @@ import { AgentCard } from "@/components/agents/agent-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { Agent } from "@/lib/types";
 
 export default function AgentsPage() {
@@ -77,8 +79,20 @@ export default function AgentsPage() {
       </div>
 
       {isLoading ? (
-        <div className="py-20 text-center text-sm text-[var(--muted-foreground)]">
-          Loading agents...
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Card key={i}>
+              <CardHeader><Skeleton className="h-5 w-32" /></CardHeader>
+              <CardContent className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+                <div className="flex gap-1 pt-2">
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-5 w-12 rounded-full" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       ) : filtered?.length === 0 ? (
         <div className="py-20 text-center">
