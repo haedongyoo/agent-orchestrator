@@ -103,10 +103,12 @@ export interface Thread {
   workspace_id: string;
   title: string;
   status: string;
+  agent_id: string | null;
 }
 
 export interface ThreadCreate {
   title: string;
+  agent_id?: string;
 }
 
 // ── Message ──────────────────────────────────────────────────────────────────
