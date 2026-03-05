@@ -5,6 +5,56 @@ Update this file at the end of every meaningful dev session.
 
 ---
 
+## 2026-03-05 (Session 12) — Phase 5: End-to-End Agent Communication
+
+### What Was Done
+
+**PR 1: Fix Celery Task Name + Payload Protocol** (PR #22):
+- Fixed task name mismatch: `"agent_runtime.tasks.run_step"` → `"agent.run_step"`
+- Fixed payload format: `kwargs={...}` → `args=[{...}]` (agent expects positional payload_dict)
+- Added `role_prompt`, `allowed_tools`, `thread_history` to dispatch payload
+- Added `_load_agent()` and `_load_thread_history()` to OrchestratorRouter
+- Made `enqueue_existing_step()` async (now loads agent context from DB)
+- Updated all callers: telegram.py, tasks.py, followups.py
+- Registered `approval_handler` task in worker.py
+
+**PR 2: Web Chat Dispatch + Thread Agent Assignment + Thread Close** (PR #23):
+- Migration 003: added `agent_id` FK to threads table
+- POST /threads/{id}/messages now auto-dispatches to assigned agent for web channel
+- Resolves agent: thread.agent_id → first enabled agent in workspace
+- POST /threads/{id}/close: sets status="closed", cancels running tasks
+- ThreadCreate accepts optional agent_id with workspace validation
+- Frontend: agent selector in "New Thread" dialog, close button, agent name in header
+
+**PR 3: Route Container Ops Through Orchestrator Worker** (PR #24):
+- Container start/stop now dispatched via Celery to orchestrator-worker
+- API container no longer needs Docker socket mounted
+- GET status reads from AgentContainer table directly
+- New `tasks/container_ops.py` with start/stop Celery tasks
+
+**PR 4: Remove Static Agent Worker + Polish** (PR #25):
+- Moved agent-worker to `profiles: [agent-dev]` in both docker-compose files
+- Updated Makefile: `build`/`prod-build` include `--profile agent-dev`, new `build-agent` target
+- Updated CLAUDE.md and DEV_LOG.md
+
+### Decisions
+- `enqueue_existing_step()` made async to load agent context from DB at dispatch time
+- Thread agent assignment auto-assigns first enabled agent if none specified
+- Container stop changed from 204 to 202 (async operation via Celery)
+- Agent-worker service profiled out — containers managed dynamically by orchestrator
+
+### Test Count
+- 180 tests passing (6 pre-existing auth bcrypt failures on macOS)
+- New tests: 8 orchestrator, 8 thread, 5 container ops = 21 new tests
+
+### Next Steps
+- Email provider OAuth (Gmail/Graph)
+- Observability: traces, step-level debugging
+- WebSocket broadcast of agent responses (step_results.py TODO)
+- Temporal migration for long-running workflows
+
+---
+
 ## 2026-03-04 (Session 11) — Phase 3 PRs 2-6: Complete Web UI
 
 ### What Was Done

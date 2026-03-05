@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useWorkspace } from "@/providers/workspace-provider";
 import { useAgents } from "@/hooks/use-agents";
@@ -10,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AgentCard } from "@/components/agents/agent-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { Bot, MessageSquare, CheckCircle, Users, Plus } from "lucide-react";
 
 export default function DashboardPage() {
@@ -19,14 +21,7 @@ export default function DashboardPage() {
   const { data: vendors, isLoading: loadingVendors } = useVendors();
 
   if (!workspace) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <h2 className="text-lg font-semibold">No workspace selected</h2>
-        <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-          Create a workspace to get started.
-        </p>
-      </div>
-    );
+    return <CreateWorkspacePrompt />;
   }
 
   const activeAgents = agents?.filter((a) => a.is_enabled) || [];
@@ -154,6 +149,42 @@ function SkeletonCard() {
         <Skeleton className="h-7 w-12" />
       </CardContent>
     </Card>
+  );
+}
+
+function CreateWorkspacePrompt() {
+  const { createWorkspace } = useWorkspace();
+  const [name, setName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    if (!name.trim()) return;
+    setCreating(true);
+    try {
+      await createWorkspace({ name: name.trim() });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center py-20">
+      <h2 className="text-lg font-semibold">No workspace yet</h2>
+      <p className="mt-2 mb-4 text-sm text-[var(--muted-foreground)]">
+        Create a workspace to get started.
+      </p>
+      <div className="flex gap-2 w-full max-w-sm">
+        <Input
+          placeholder="Workspace name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+        />
+        <Button onClick={handleCreate} disabled={creating || !name.trim()}>
+          {creating ? "Creating..." : "Create"}
+        </Button>
+      </div>
+    </div>
   );
 }
 

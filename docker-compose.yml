@@ -162,12 +162,12 @@ services:
   #
   # SECURITY: Do NOT add backend-net here. Ever.
   #
-  # Each running agent is a separate container instance with its own AGENT_ID.
-  # The orchestrator spawns/stops agent containers via the Docker API when
-  # agents are enabled/disabled in the workspace settings.
+  # Agent containers are managed DYNAMICALLY by the orchestrator via Docker API.
+  # This static definition exists only for building the image:
+  #   docker compose --profile agent-dev build agent-worker
   #
-  # For development, a single placeholder agent-worker is defined here.
-  # In production, agent containers are managed dynamically by the orchestrator.
+  # To run manually for debugging:
+  #   docker compose --profile agent-dev run -e AGENT_ID=<uuid> agent-worker
   #
   agent-worker:
     image: openclaw/agent-runtime:latest   # explicit name so ContainerManager can reference it
@@ -180,12 +180,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
-      # AGENT_ID must be set to the UUID of the agent this worker serves.
-      # Override per-instance: docker compose up -e AGENT_ID=<uuid> agent-worker
       AGENT_ID: ${AGENT_ID:-placeholder-set-agent-id}
-      # ── LiteLLM provider config ──────────────────────────────────────────────
-      # Change LLM_MODEL to switch providers — no image rebuild needed.
-      # See .env.example for provider-specific examples (OpenAI, Gemini, Ollama…)
       LLM_MODEL:      ${LLM_MODEL:-anthropic/claude-opus-4-6}
       LLM_API_KEY:    ${LLM_API_KEY:-}
       LLM_API_BASE:   ${LLM_API_BASE:-}
@@ -195,7 +190,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    # AGENT_ID is expanded at runtime via shell form CMD in the Dockerfile
+    profiles:
+      - agent-dev     # only runs when explicitly requested
 
   # ── Web UI (Next.js) ────────────────────────────────────────────────────────
 
@@ -203,12 +199,13 @@ services:
     build:
       context: ./apps/web
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_WS_URL: ws://localhost:8000
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
       NEXT_PUBLIC_WS_URL: ws://localhost:8000
-    volumes:
-      - ./apps/web/src:/app/src   # hot-reload in dev
     networks:
       - backend-net
     depends_on:
@@ -216,7 +213,6 @@ services:
         condition: service_healthy
     ports:
       - "3000:3000"
-    command: npm run dev
 
   # ── One-shot migration runner ──────────────────────────────────────────────
   #

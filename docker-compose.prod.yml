@@ -164,9 +164,8 @@ services:
   # ── Agent Runtime (agent-net ONLY) ────────────────────────────────────────
   #
   # SECURITY: Do NOT add backend-net here. Ever.
-  # Agent containers are spawned dynamically by the orchestrator.
-  # This static entry is the base image reference only — scale with:
-  #   docker compose -f docker-compose.prod.yml up -d --scale agent-worker=<N>
+  # Agent containers are spawned DYNAMICALLY by the orchestrator via Docker API.
+  # This static entry exists only for image building / manual debugging.
   #
   agent-worker:
     image: openclaw/agent-runtime:${IMAGE_TAG:-latest}
@@ -184,6 +183,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    profiles:
+      - agent-dev     # only runs when explicitly requested
 
   # ── One-shot migration runner ──────────────────────────────────────────────
 

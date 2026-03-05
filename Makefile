@@ -23,8 +23,11 @@ down:  ## Stop and remove dev containers
 restart:  ## Restart all dev services
 	docker compose restart
 
-build:  ## (Re)build all dev images
-	docker compose build
+build:  ## (Re)build all dev images (including agent runtime)
+	docker compose --profile agent-dev build
+
+build-agent:  ## Build only the agent runtime image
+	docker compose --profile agent-dev build agent-worker
 
 ps:  ## Show running containers
 	docker compose ps
@@ -83,7 +86,7 @@ test-policy:  ## Run policy engine tests only (fastest safety check)
 
 scale-agents:  ## Scale agent workers: make scale-agents N=3
 	@if [ -z "$(N)" ]; then echo "Usage: make scale-agents N=<count>"; exit 1; fi
-	docker compose up -d --scale agent-worker=$(N) agent-worker
+	docker compose --profile agent-dev up -d --scale agent-worker=$(N) agent-worker
 
 # ── Web UI ────────────────────────────────────────────────────────────────────
 
@@ -92,8 +95,8 @@ dev-web:  ## Run web UI locally (not in Docker — uses npm run dev)
 
 # ── Production ─────────────────────────────────────────────────────────────────
 
-prod-build:  ## Build production images (requires IMAGE_TAG env var or defaults to latest)
-	docker compose -f docker-compose.prod.yml build
+prod-build:  ## Build production images (including agent runtime)
+	docker compose -f docker-compose.prod.yml --profile agent-dev build
 
 prod-up:  ## Start production stack (detached)
 	docker compose -f docker-compose.prod.yml up -d
