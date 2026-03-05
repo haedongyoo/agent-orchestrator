@@ -5,6 +5,37 @@ Update this file at the end of every meaningful dev session.
 
 ---
 
+## 2026-03-04 (Session 12) — Phase 4 PR 3: Policy Hardening
+
+### What Was Done
+
+**Policy Hardening — Commitment/Payment Language Detection + Email Domain Allowlist** (PR):
+- New `services/orchestrator/content_analyzer.py` — regex-based detection of commitment, payment, scope-change language with structured `ContentAnalysis` result
+- Updated `services/orchestrator/policy.py`:
+  - `_check_content()` — scans agent outbound messages for sensitive patterns; blocks and creates approval on detection
+  - `_check_email_recipient()` — implemented email domain allowlist enforcement (was TODO stub)
+  - `_create_approval_request()` — extended with `extra_scope` parameter for content/domain context
+- Updated `models/approval.py` — added 3 new approval types: `commitment_detected`, `payment_detected`, `scope_change_detected`
+- Updated `models/workspace.py` — added `allowed_email_domains` JSON column
+- New `tasks/approval_handler.py` — Celery task that processes agent approval requests (creates Approval row, sets task to needs_approval)
+- Updated `apps/agent/agent_runtime/tools/approval_tool.py` — wired: posts `handle_approval_request` to orchestrator queue via Celery `send_task()`
+- New Alembic migration `003_policy_hardening.py` — adds `allowed_email_domains` to workspaces
+- Updated `routers/workspaces.py` — `allowed_email_domains` in update schema + handler
+- Frontend: risk badges and detected pattern tags on approval cards, email domain allowlist input in settings
+- 26 new tests (173 total): content patterns, policy engine content/domain checks, approval types, tool wiring, handler
+
+### Key Decisions
+- Content analysis is regex-based, not LLM-based — deterministic, fast, no API cost, auditable
+- Content scanning only on agent outbound — user messages are trusted
+- Email domain check returns allowed when `allowed_email_domains` is null or empty (allow all by default)
+- Approval tool sends to orchestrator queue — agents never create DB rows directly
+
+### Next Steps
+- All Phase 4 PRs complete (pending merge)
+- Phase 5 planning: production deployment, monitoring, scaling
+
+---
+
 ## 2026-03-04 (Session 11) — Phase 3 PRs 2-6: Complete Web UI
 
 ### What Was Done

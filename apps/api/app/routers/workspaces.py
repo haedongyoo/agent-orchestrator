@@ -44,6 +44,7 @@ class WorkspaceUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     timezone: Optional[str] = Field(default=None, max_length=64)
     language_pref: Optional[str] = Field(default=None, max_length=16)
+    allowed_email_domains: Optional[list[str]] = Field(default=None, description="Email domain allowlist for agent outbound; null = allow all")
 
 
 class WorkspaceResponse(BaseModel):
@@ -51,6 +52,7 @@ class WorkspaceResponse(BaseModel):
     name: str
     timezone: str
     language_pref: str
+    allowed_email_domains: Optional[list[str]] = None
 
     model_config = {"from_attributes": True}
 
@@ -186,6 +188,8 @@ async def update_workspace(
         workspace.timezone = body.timezone
     if body.language_pref is not None:
         workspace.language_pref = body.language_pref
+    if body.allowed_email_domains is not None:
+        workspace.allowed_email_domains = body.allowed_email_domains
 
     await db.commit()
     await db.refresh(workspace)

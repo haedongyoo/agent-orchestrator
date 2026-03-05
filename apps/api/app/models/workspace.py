@@ -1,7 +1,7 @@
 from typing import Optional
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Boolean, ForeignKey, DateTime, UniqueConstraint
+from sqlalchemy import String, Boolean, ForeignKey, DateTime, UniqueConstraint, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, utcnow
 
@@ -33,6 +33,7 @@ class Workspace(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     timezone: Mapped[str] = mapped_column(String(64), default="UTC")
     language_pref: Mapped[str] = mapped_column(String(16), default="en")
+    allowed_email_domains: Mapped[Optional[list]] = mapped_column(JSON, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     owner: Mapped[User] = relationship(back_populates="workspaces")

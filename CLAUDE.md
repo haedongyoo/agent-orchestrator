@@ -303,7 +303,15 @@ translate_message(text, target_language, source_language?) -> {translated_text, 
   - 152/152 tests passing (9 new scheduler tests)
 - [ ] Email provider OAuth (Gmail/Graph)
 - [ ] Observability: traces, step-level debugging, `GET /api/tasks/{id}/trace`
-- [ ] Policy hardening: detect commitment/contract/payment language → auto-approval gate
+- [x] **Policy hardening** (PR #21)
+  - `services/orchestrator/content_analyzer.py` — regex-based commitment/payment/scope-change language detection
+  - `services/orchestrator/policy.py` — content analysis rule + email domain allowlist enforcement
+  - `models/approval.py` — added `commitment_detected`, `payment_detected`, `scope_change_detected` types
+  - `models/workspace.py` — added `allowed_email_domains` JSON column
+  - `tasks/approval_handler.py` — Celery task to process agent approval requests
+  - Agent `approval_tool.py` — wired: posts to orchestrator queue via Celery `send_task()`
+  - Frontend: risk badges + detected patterns on approval cards, email domain allowlist in settings
+  - 173/173 tests passing (26 new policy tests)
 
 ### Phase 3 — Full Web UI (complete)
 - [x] **Web UI scaffold + auth + layout shell** (PR #13)

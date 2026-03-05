@@ -7,10 +7,13 @@ from app.models.base import Base, utcnow
 
 # Approval types
 APPROVAL_TYPES = (
-    "enable_agent_chat",   # A2A communication
-    "send_email",          # outbound email
-    "new_recipient",       # emailing a new address
-    "share_info",          # agent sharing info with another
+    "enable_agent_chat",      # A2A communication
+    "send_email",             # outbound email
+    "new_recipient",          # emailing a new address
+    "share_info",             # agent sharing info with another
+    "commitment_detected",    # commitment/contract language in agent output
+    "payment_detected",       # payment/invoice language in agent output
+    "scope_change_detected",  # scope/timeline change language in agent output
     "other",
 )
 APPROVAL_STATUSES = ("pending", "approved", "rejected")
