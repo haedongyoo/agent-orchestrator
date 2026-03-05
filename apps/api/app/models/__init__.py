@@ -3,6 +3,7 @@ from app.models.agent import Agent
 from app.models.thread import Thread
 from app.models.message import Message
 from app.models.task import Task, TaskStep
+from app.models.step_trace import StepTrace
 from app.models.approval import Approval
 from app.models.audit import AuditLog
 from app.models.container import AgentContainer
@@ -19,6 +20,7 @@ __all__ = [
     "Message",
     "Task",
     "TaskStep",
+    "StepTrace",
     "Approval",
     "AuditLog",
     "AgentContainer",

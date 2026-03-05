@@ -152,8 +152,35 @@ export interface TaskStep {
   tool_call: Record<string, unknown> | null;
   result: Record<string, unknown> | null;
   status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  duration_ms: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  iterations: number | null;
+  agent_model: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface TraceEvent {
+  id: string;
+  step_id: string;
+  event_type: string;
+  timestamp: string;
+  detail: Record<string, unknown> | null;
+}
+
+export interface StepWithTraces {
+  step: TaskStep;
+  traces: TraceEvent[];
+}
+
+export interface TaskTrace {
+  task: Task;
+  steps: StepWithTraces[];
+  total_tokens: number;
+  total_duration_ms: number;
 }
 
 // ── Approval ─────────────────────────────────────────────────────────────────

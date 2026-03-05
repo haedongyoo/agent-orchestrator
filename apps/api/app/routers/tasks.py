@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models.task import Task, TaskStep
+from app.models.step_trace import StepTrace
 from app.models.thread import Thread
 from app.models.workspace import User, Workspace
 from app.models.agent import Agent
@@ -61,8 +62,37 @@ class TaskStepResponse(BaseModel):
     status: str
     tool_call: Optional[dict]
     result: Optional[dict]
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    duration_ms: Optional[int] = None
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    iterations: Optional[int] = None
+    agent_model: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+class TraceEventResponse(BaseModel):
+    id: uuid.UUID
+    step_id: uuid.UUID
+    event_type: str
+    timestamp: datetime
+    detail: Optional[dict]
+
+    model_config = {"from_attributes": True}
+
+
+class StepWithTraces(BaseModel):
+    step: TaskStepResponse
+    traces: List[TraceEventResponse]
+
+
+class TaskTraceResponse(BaseModel):
+    task: TaskResponse
+    steps: List[StepWithTraces]
+    total_tokens: int
+    total_duration_ms: int
 
 
 # ── Ownership helpers ──────────────────────────────────────────────────────────
@@ -196,6 +226,53 @@ async def list_steps(
     )
     steps = result.scalars().all()
     return [TaskStepResponse.model_validate(s) for s in steps]
+
+
+@router.get("/tasks/{task_id}/trace", response_model=TaskTraceResponse)
+async def get_task_trace(
+    task_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TaskTraceResponse:
+    """Get full execution trace for a task: all steps with their trace events."""
+    task = await _get_task_verified(task_id, current_user, db)
+
+    steps_result = await db.execute(
+        select(TaskStep)
+        .where(TaskStep.task_id == task.id)
+        .order_by(TaskStep.created_at)
+    )
+    steps = steps_result.scalars().all()
+
+    step_ids = [s.id for s in steps]
+
+    traces_result = await db.execute(
+        select(StepTrace)
+        .where(StepTrace.step_id.in_(step_ids))
+        .order_by(StepTrace.timestamp)
+    ) if step_ids else None
+    all_traces = traces_result.scalars().all() if traces_result else []
+
+    # Group traces by step_id
+    traces_by_step: dict[uuid.UUID, list] = {sid: [] for sid in step_ids}
+    for t in all_traces:
+        traces_by_step.setdefault(t.step_id, []).append(t)
+
+    total_tokens = sum((s.input_tokens or 0) + (s.output_tokens or 0) for s in steps)
+    total_duration_ms = sum(s.duration_ms or 0 for s in steps)
+
+    return TaskTraceResponse(
+        task=TaskResponse.model_validate(task),
+        steps=[
+            StepWithTraces(
+                step=TaskStepResponse.model_validate(s),
+                traces=[TraceEventResponse.model_validate(t) for t in traces_by_step.get(s.id, [])],
+            )
+            for s in steps
+        ],
+        total_tokens=total_tokens,
+        total_duration_ms=total_duration_ms,
+    )
 
 
 @router.post("/tasks/{task_id}/cancel", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

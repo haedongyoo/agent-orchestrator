@@ -1,7 +1,7 @@
 from typing import Optional
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, ForeignKey, DateTime, JSON
+from sqlalchemy import String, Text, Integer, ForeignKey, DateTime, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, utcnow
 
@@ -41,5 +41,15 @@ class TaskStep(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
+    # Observability columns (populated from agent step result)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    input_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    iterations: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    agent_model: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+
     task: Mapped[Task] = relationship(back_populates="steps")
     agent: Mapped["Agent"] = relationship(back_populates="task_steps")  # type: ignore[name-defined]
+    traces: Mapped[list["StepTrace"]] = relationship(back_populates="step", order_by="StepTrace.timestamp")  # type: ignore[name-defined]
