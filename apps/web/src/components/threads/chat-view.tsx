@@ -7,7 +7,12 @@ import { MessageBubble } from "./message-bubble";
 import { MessageInput } from "./message-input";
 import { Button } from "@/components/ui/button";
 
-export function ChatView({ threadId }: { threadId: string }) {
+interface ChatViewProps {
+  threadId: string;
+  disabled?: boolean;
+}
+
+export function ChatView({ threadId, disabled = false }: ChatViewProps) {
   const {
     data,
     isLoading,
@@ -68,7 +73,13 @@ export function ChatView({ threadId }: { threadId: string }) {
       </div>
 
       {/* Input */}
-      <MessageInput onSend={handleSend} disabled={postMessage.isPending} />
+      {disabled ? (
+        <div className="border-t border-[var(--border)] p-4 text-center text-sm text-[var(--muted-foreground)]">
+          This thread is closed.
+        </div>
+      ) : (
+        <MessageInput onSend={handleSend} disabled={postMessage.isPending} />
+      )}
     </div>
   );
 }

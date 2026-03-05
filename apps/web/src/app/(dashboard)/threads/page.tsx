@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, MessageSquare } from "lucide-react";
+import { Plus, MessageSquare, Bot } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useThreads } from "@/hooks/use-threads";
+import { useAgents } from "@/hooks/use-agents";
 import { useWorkspace } from "@/providers/workspace-provider";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -17,8 +18,10 @@ import type { Thread, ThreadCreate } from "@/lib/types";
 export default function ThreadsPage() {
   const { workspace } = useWorkspace();
   const { data: threads, isLoading } = useThreads();
+  const { data: agents } = useAgents();
   const [showNew, setShowNew] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [selectedAgentId, setSelectedAgentId] = useState("");
   const qc = useQueryClient();
 
   const createThread = useMutation({
@@ -28,6 +31,7 @@ export default function ThreadsPage() {
       qc.invalidateQueries({ queryKey: ["threads", workspace?.id] });
       setShowNew(false);
       setNewTitle("");
+      setSelectedAgentId("");
     },
   });
 
@@ -38,6 +42,8 @@ export default function ThreadsPage() {
       </div>
     );
   }
+
+  const enabledAgents = agents?.filter((a) => a.is_enabled) ?? [];
 
   return (
     <div className="space-y-6">
@@ -61,9 +67,13 @@ export default function ThreadsPage() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (newTitle.trim()) createThread.mutate({ title: newTitle.trim() });
+                if (newTitle.trim()) {
+                  const data: ThreadCreate = { title: newTitle.trim() };
+                  if (selectedAgentId) data.agent_id = selectedAgentId;
+                  createThread.mutate(data);
+                }
               }}
-              className="flex gap-3"
+              className="space-y-3"
             >
               <Input
                 value={newTitle}
@@ -71,12 +81,29 @@ export default function ThreadsPage() {
                 placeholder="Thread title..."
                 autoFocus
               />
-              <Button type="submit" disabled={createThread.isPending || !newTitle.trim()}>
-                {createThread.isPending ? "Creating..." : "Create"}
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => setShowNew(false)}>
-                Cancel
-              </Button>
+              <div className="flex items-center gap-2">
+                <Bot className="h-4 w-4 text-[var(--muted-foreground)]" />
+                <select
+                  value={selectedAgentId}
+                  onChange={(e) => setSelectedAgentId(e.target.value)}
+                  className="flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm"
+                >
+                  <option value="">Auto-assign agent</option>
+                  {enabledAgents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-3">
+                <Button type="submit" disabled={createThread.isPending || !newTitle.trim()}>
+                  {createThread.isPending ? "Creating..." : "Create"}
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => { setShowNew(false); setSelectedAgentId(""); }}>
+                  Cancel
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
@@ -98,21 +125,33 @@ export default function ThreadsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {threads?.map((thread) => (
-            <Link
-              key={thread.id}
-              href={`/threads/${thread.id}`}
-              className="flex items-center justify-between rounded-lg border border-[var(--border)] p-4 transition-colors hover:bg-[var(--accent)]"
-            >
-              <div className="flex items-center gap-3">
-                <MessageSquare className="h-4 w-4 text-[var(--muted-foreground)]" />
-                <span className="font-medium">{thread.title}</span>
-              </div>
-              <Badge variant={thread.status === "open" ? "default" : "secondary"}>
-                {thread.status}
-              </Badge>
-            </Link>
-          ))}
+          {threads?.map((thread) => {
+            const assignedAgent = thread.agent_id
+              ? agents?.find((a) => a.id === thread.agent_id)
+              : null;
+            return (
+              <Link
+                key={thread.id}
+                href={`/threads/${thread.id}`}
+                className="flex items-center justify-between rounded-lg border border-[var(--border)] p-4 transition-colors hover:bg-[var(--accent)]"
+              >
+                <div className="flex items-center gap-3">
+                  <MessageSquare className="h-4 w-4 text-[var(--muted-foreground)]" />
+                  <div>
+                    <span className="font-medium">{thread.title}</span>
+                    {assignedAgent && (
+                      <span className="ml-2 text-xs text-[var(--muted-foreground)]">
+                        {assignedAgent.name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <Badge variant={thread.status === "open" ? "default" : "secondary"}>
+                  {thread.status}
+                </Badge>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

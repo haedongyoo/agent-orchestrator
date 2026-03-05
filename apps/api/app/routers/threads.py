@@ -4,9 +4,11 @@ Threads + Messages router.
 
 Endpoints (all require Bearer JWT):
   POST  /api/workspaces/{id}/threads              → 201 ThreadResponse
+  GET   /api/workspaces/{id}/threads              → 200 list[ThreadResponse]
   GET   /api/threads/{threadId}                   → 200 ThreadResponse
   POST  /api/threads/{threadId}/messages          → 201 MessageResponse
   GET   /api/threads/{threadId}/messages          → 200 MessagePage (cursor-paginated)
+  POST  /api/threads/{threadId}/close             → 200 ThreadResponse
 
 Cursor pagination:
   Cursor = base64url(JSON{"created_at": iso, "id": str})
@@ -26,7 +28,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -44,6 +46,7 @@ _VALID_CHANNELS = frozenset({"web", "telegram", "email", "system"})
 
 class ThreadCreate(BaseModel):
     title: str = Field(min_length=1, max_length=512)
+    agent_id: Optional[uuid.UUID] = None
 
 
 class ThreadResponse(BaseModel):
@@ -51,6 +54,7 @@ class ThreadResponse(BaseModel):
     workspace_id: uuid.UUID
     title: str
     status: str
+    agent_id: Optional[uuid.UUID] = None
 
     model_config = {"from_attributes": True}
 
@@ -180,12 +184,28 @@ async def create_thread(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ThreadResponse:
-    """Create a new thread in the workspace."""
-    await _get_owned_workspace_by_id(workspace_id, current_user, db)
+    """Create a new thread in the workspace, optionally assigning an agent."""
+    ws = await _get_owned_workspace_by_id(workspace_id, current_user, db)
+
+    # Validate agent_id belongs to this workspace if provided
+    if body.agent_id is not None:
+        from app.models.agent import Agent
+        agent_result = await db.execute(
+            select(Agent).where(
+                Agent.id == body.agent_id,
+                Agent.workspace_id == ws.id,
+            )
+        )
+        if agent_result.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Agent not found in this workspace",
+            )
 
     thread = Thread(
         workspace_id=workspace_id,
         title=body.title,
+        agent_id=body.agent_id,
     )
     db.add(thread)
     await db.commit()
@@ -224,6 +244,48 @@ async def get_thread(
     return ThreadResponse.model_validate(thread)
 
 
+# ── Close endpoint ────────────────────────────────────────────────────────────
+
+@router.post("/threads/{thread_id}/close", response_model=ThreadResponse)
+async def close_thread(
+    thread_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ThreadResponse:
+    """Close a thread and cancel any running tasks."""
+    thread = await _get_thread_with_ownership(thread_id, current_user, db)
+
+    if thread.status == "closed":
+        return ThreadResponse.model_validate(thread)
+
+    thread.status = "closed"
+
+    # Cancel all running/queued tasks for this thread
+    from app.models.task import Task, TaskStep
+    await db.execute(
+        update(Task)
+        .where(
+            Task.thread_id == thread.id,
+            Task.status.in_(["queued", "running", "needs_approval"]),
+        )
+        .values(status="failed")
+    )
+    await db.execute(
+        update(TaskStep)
+        .where(
+            TaskStep.task_id.in_(
+                select(Task.id).where(Task.thread_id == thread.id)
+            ),
+            TaskStep.status.in_(["queued", "running"]),
+        )
+        .values(status="failed")
+    )
+
+    await db.commit()
+    await db.refresh(thread)
+    return ThreadResponse.model_validate(thread)
+
+
 # ── Message endpoints ──────────────────────────────────────────────────────────
 
 @router.post(
@@ -237,8 +299,19 @@ async def post_message(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse:
-    """Post a user message to the thread. Ownership verified via workspace."""
+    """
+    Post a user message to the thread. Ownership verified via workspace.
+
+    For web channel messages, automatically dispatches to the assigned agent
+    (or the first enabled agent in the workspace).
+    """
     thread = await _get_thread_with_ownership(thread_id, current_user, db)
+
+    if thread.status == "closed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Thread is closed",
+        )
 
     msg = Message(
         thread_id=thread.id,
@@ -248,9 +321,76 @@ async def post_message(
         content=body.content,
     )
     db.add(msg)
+    await db.flush()
+
+    # Dispatch to agent for web channel messages
+    if body.channel == "web":
+        await _dispatch_to_agent(db, thread, body.content, current_user)
+
     await db.commit()
     await db.refresh(msg)
     return _msg_to_response(msg)
+
+
+async def _dispatch_to_agent(
+    db: AsyncSession,
+    thread: Thread,
+    content: str,
+    current_user: User,
+) -> None:
+    """Resolve agent, create task, and dispatch to agent queue."""
+    from app.models.agent import Agent
+    from app.models.task import Task
+    from app.services.orchestrator.planner import Planner
+    from app.services.orchestrator.router import OrchestratorRouter
+
+    # Resolve agent: thread.agent_id first, then first enabled in workspace
+    agent = None
+    if thread.agent_id:
+        result = await db.execute(
+            select(Agent).where(
+                Agent.id == thread.agent_id,
+                Agent.is_enabled == True,  # noqa: E712
+            )
+        )
+        agent = result.scalar_one_or_none()
+
+    if agent is None:
+        result = await db.execute(
+            select(Agent).where(
+                Agent.workspace_id == thread.workspace_id,
+                Agent.is_enabled == True,  # noqa: E712
+            ).limit(1)
+        )
+        agent = result.scalar_one_or_none()
+
+    if agent is None:
+        return  # No agents available — message saved but not dispatched
+
+    # Auto-assign agent to thread if not set
+    if thread.agent_id is None:
+        thread.agent_id = agent.id
+
+    # Create task
+    task = Task(
+        workspace_id=thread.workspace_id,
+        thread_id=thread.id,
+        objective=content,
+        status="queued",
+        created_by=current_user.id,
+    )
+    db.add(task)
+    await db.flush()
+
+    # Decompose and dispatch
+    planner = Planner(db)
+    steps = await planner.decompose(task, [agent.id])
+
+    orch = OrchestratorRouter(db)
+    for step in steps:
+        await orch.enqueue_existing_step(step, workspace_id=thread.workspace_id, thread_id=thread.id)
+
+    task.status = "running"
 
 
 @router.get("/threads/{thread_id}/messages", response_model=MessagePage)

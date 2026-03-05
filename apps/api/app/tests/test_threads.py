@@ -15,7 +15,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI, status
@@ -261,6 +261,7 @@ class TestPostMessage:
         now = datetime.now(timezone.utc)
 
         db = mock_db_sequence(thread, ws)
+        db.flush = AsyncMock()
 
         async def _refresh(obj):
             obj.id = msg_id
@@ -271,11 +272,12 @@ class TestPostMessage:
         app.dependency_overrides[get_current_user] = override_auth(user)
         app.dependency_overrides[get_db] = override_db(db)
         try:
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.post(
-                    f"/api/threads/{thread.id}/messages",
-                    json={"content": "Hello agent", "channel": "web"},
-                )
+            with patch("app.routers.threads._dispatch_to_agent", AsyncMock()):
+                async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                    resp = await c.post(
+                        f"/api/threads/{thread.id}/messages",
+                        json={"content": "Hello agent", "channel": "web"},
+                    )
             assert resp.status_code == status.HTTP_201_CREATED
             data = resp.json()
             assert data["content"] == "Hello agent"
@@ -450,6 +452,232 @@ class TestListMessages:
         try:
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
                 resp = await c.get(f"/api/threads/{uuid.uuid4()}/messages")
+            assert resp.status_code == status.HTTP_404_NOT_FOUND
+        finally:
+            app.dependency_overrides.clear()
+
+
+# ── POST /api/threads/{id}/messages (dispatch) ───────────────────────────────
+
+class TestPostMessageDispatch:
+    @pytest.mark.asyncio
+    async def test_post_message_dispatches_to_agent(self):
+        """Web messages trigger _dispatch_to_agent."""
+        user = make_user()
+        ws = make_workspace(user.id)
+        thread = make_thread(ws.id)
+        msg_id = uuid.uuid4()
+        now = datetime.now(timezone.utc)
+
+        db = mock_db_sequence(thread, ws)
+        db.flush = AsyncMock()
+
+        async def _refresh(obj):
+            obj.id = msg_id
+            obj.created_at = now
+
+        db.refresh.side_effect = _refresh
+
+        app.dependency_overrides[get_current_user] = override_auth(user)
+        app.dependency_overrides[get_db] = override_db(db)
+        try:
+            with patch("app.routers.threads._dispatch_to_agent", AsyncMock()) as mock_dispatch:
+                async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                    resp = await c.post(
+                        f"/api/threads/{thread.id}/messages",
+                        json={"content": "Negotiate price", "channel": "web"},
+                    )
+                assert resp.status_code == status.HTTP_201_CREATED
+                mock_dispatch.assert_called_once()
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.asyncio
+    async def test_post_message_no_dispatch_for_non_web(self):
+        """Non-web channel messages do not dispatch."""
+        user = make_user()
+        ws = make_workspace(user.id)
+        thread = make_thread(ws.id)
+        msg_id = uuid.uuid4()
+        now = datetime.now(timezone.utc)
+
+        db = mock_db_sequence(thread, ws)
+        db.flush = AsyncMock()
+
+        async def _refresh(obj):
+            obj.id = msg_id
+            obj.created_at = now
+
+        db.refresh.side_effect = _refresh
+
+        app.dependency_overrides[get_current_user] = override_auth(user)
+        app.dependency_overrides[get_db] = override_db(db)
+        try:
+            with patch("app.routers.threads._dispatch_to_agent", AsyncMock()) as mock_dispatch:
+                async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                    resp = await c.post(
+                        f"/api/threads/{thread.id}/messages",
+                        json={"content": "Hello", "channel": "system"},
+                    )
+                assert resp.status_code == status.HTTP_201_CREATED
+                mock_dispatch.assert_not_called()
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.asyncio
+    async def test_post_message_closed_thread_rejected(self):
+        """Cannot post to a closed thread."""
+        user = make_user()
+        ws = make_workspace(user.id)
+        thread = make_thread(ws.id)
+        thread.status = "closed"
+
+        db = mock_db_sequence(thread, ws)
+
+        app.dependency_overrides[get_current_user] = override_auth(user)
+        app.dependency_overrides[get_db] = override_db(db)
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.post(
+                    f"/api/threads/{thread.id}/messages",
+                    json={"content": "Hello"},
+                )
+            assert resp.status_code == status.HTTP_400_BAD_REQUEST
+            assert "closed" in resp.json()["detail"].lower()
+        finally:
+            app.dependency_overrides.clear()
+
+
+# ── POST /api/workspaces/{id}/threads (with agent_id) ────────────────────────
+
+class TestCreateThreadWithAgent:
+    @pytest.mark.asyncio
+    async def test_create_thread_with_agent_id(self):
+        """Thread can be created with an agent_id."""
+        user = make_user()
+        ws = make_workspace(user.id)
+        agent_id = uuid.uuid4()
+        thread_id = uuid.uuid4()
+
+        from app.models.agent import Agent
+        mock_agent = MagicMock(spec=Agent)
+        mock_agent.id = agent_id
+
+        # ws lookup, then agent lookup
+        db = mock_db_sequence(ws, mock_agent)
+
+        async def _refresh(obj):
+            obj.id = thread_id
+            obj.status = "open"
+            obj.agent_id = agent_id
+
+        db.refresh.side_effect = _refresh
+
+        app.dependency_overrides[get_current_user] = override_auth(user)
+        app.dependency_overrides[get_db] = override_db(db)
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.post(
+                    f"/api/workspaces/{ws.id}/threads",
+                    json={"title": "With Agent", "agent_id": str(agent_id)},
+                )
+            assert resp.status_code == status.HTTP_201_CREATED
+            data = resp.json()
+            assert data["agent_id"] == str(agent_id)
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.asyncio
+    async def test_create_thread_invalid_agent_id(self):
+        """Invalid agent_id returns 400."""
+        user = make_user()
+        ws = make_workspace(user.id)
+        bad_agent_id = uuid.uuid4()
+
+        # ws lookup ok, agent not found
+        db = mock_db_sequence(ws, None)
+
+        app.dependency_overrides[get_current_user] = override_auth(user)
+        app.dependency_overrides[get_db] = override_db(db)
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.post(
+                    f"/api/workspaces/{ws.id}/threads",
+                    json={"title": "Bad Agent", "agent_id": str(bad_agent_id)},
+                )
+            assert resp.status_code == status.HTTP_400_BAD_REQUEST
+        finally:
+            app.dependency_overrides.clear()
+
+
+# ── POST /api/threads/{id}/close ─────────────────────────────────────────────
+
+class TestCloseThread:
+    @pytest.mark.asyncio
+    async def test_close_thread_success(self):
+        user = make_user()
+        ws = make_workspace(user.id)
+        thread = make_thread(ws.id)
+
+        # thread lookup, ws lookup, then 2 update() calls
+        db = AsyncMock()
+        call_count = 0
+        async def _execute(stmt):
+            nonlocal call_count
+            call_count += 1
+            m = MagicMock()
+            if call_count == 1:
+                m.scalar_one_or_none.return_value = thread
+            elif call_count == 2:
+                m.scalar_one_or_none.return_value = ws
+            else:
+                m.rowcount = 0  # update statements
+            return m
+        db.execute = _execute
+        db.add = MagicMock()
+        db.commit = AsyncMock()
+        db.refresh = AsyncMock()
+
+        app.dependency_overrides[get_current_user] = override_auth(user)
+        app.dependency_overrides[get_db] = override_db(db)
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.post(f"/api/threads/{thread.id}/close")
+            assert resp.status_code == status.HTTP_200_OK
+            assert resp.json()["status"] == "closed"
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.asyncio
+    async def test_close_already_closed_idempotent(self):
+        """Closing an already-closed thread returns success."""
+        user = make_user()
+        ws = make_workspace(user.id)
+        thread = make_thread(ws.id)
+        thread.status = "closed"
+
+        db = mock_db_sequence(thread, ws)
+
+        app.dependency_overrides[get_current_user] = override_auth(user)
+        app.dependency_overrides[get_db] = override_db(db)
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.post(f"/api/threads/{thread.id}/close")
+            assert resp.status_code == status.HTTP_200_OK
+            assert resp.json()["status"] == "closed"
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.asyncio
+    async def test_close_thread_not_found(self):
+        user = make_user()
+        db = mock_db_single(None)
+
+        app.dependency_overrides[get_current_user] = override_auth(user)
+        app.dependency_overrides[get_db] = override_db(db)
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.post(f"/api/threads/{uuid.uuid4()}/close")
             assert resp.status_code == status.HTTP_404_NOT_FOUND
         finally:
             app.dependency_overrides.clear()
