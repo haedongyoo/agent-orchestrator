@@ -9,13 +9,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AgentCard } from "@/components/agents/agent-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Bot, MessageSquare, CheckCircle, Users, Plus } from "lucide-react";
 
 export default function DashboardPage() {
   const { workspace } = useWorkspace();
-  const { data: agents } = useAgents();
-  const { data: threads } = useThreads();
-  const { data: vendors } = useVendors();
+  const { data: agents, isLoading: loadingAgents } = useAgents();
+  const { data: threads, isLoading: loadingThreads } = useThreads();
+  const { data: vendors, isLoading: loadingVendors } = useVendors();
 
   if (!workspace) {
     return (
@@ -42,10 +43,22 @@ export default function DashboardPage() {
 
       {/* Summary cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard icon={Bot} label="Active Agents" value={String(activeAgents.length)} href="/agents" />
-        <SummaryCard icon={MessageSquare} label="Open Threads" value={String(openThreads.length)} href="/threads" />
+        {loadingAgents ? (
+          <SkeletonCard />
+        ) : (
+          <SummaryCard icon={Bot} label="Active Agents" value={String(activeAgents.length)} href="/agents" />
+        )}
+        {loadingThreads ? (
+          <SkeletonCard />
+        ) : (
+          <SummaryCard icon={MessageSquare} label="Open Threads" value={String(openThreads.length)} href="/threads" />
+        )}
         <SummaryCard icon={CheckCircle} label="Pending Approvals" value="--" href="/approvals" />
-        <SummaryCard icon={Users} label="Vendors" value={String(vendors?.length ?? 0)} href="/vendors" />
+        {loadingVendors ? (
+          <SkeletonCard />
+        ) : (
+          <SummaryCard icon={Users} label="Vendors" value={String(vendors?.length ?? 0)} href="/vendors" />
+        )}
       </div>
 
       {/* Agent grid */}
@@ -59,7 +72,19 @@ export default function DashboardPage() {
             </Button>
           </Link>
         </div>
-        {agents && agents.length > 0 ? (
+        {loadingAgents ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <Card key={i}>
+                <CardHeader><Skeleton className="h-5 w-32" /></CardHeader>
+                <CardContent className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : agents && agents.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {agents.slice(0, 6).map((agent) => (
               <AgentCard key={agent.id} agent={agent} />
@@ -85,7 +110,13 @@ export default function DashboardPage() {
             <Button size="sm" variant="outline">View all</Button>
           </Link>
         </div>
-        {threads && threads.length > 0 ? (
+        {loadingThreads ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-lg" />
+            ))}
+          </div>
+        ) : threads && threads.length > 0 ? (
           <div className="space-y-2">
             {threads.slice(0, 5).map((thread) => (
               <Link
@@ -109,6 +140,20 @@ export default function DashboardPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-4 w-4 rounded" />
+      </CardHeader>
+      <CardContent>
+        <Skeleton className="h-7 w-12" />
+      </CardContent>
+    </Card>
   );
 }
 

@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, Search, Trash2, Users } from "lucide-react";
+import { Plus, Search, Users } from "lucide-react";
 import { useVendors } from "@/hooks/use-vendors";
 import { useWorkspace } from "@/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function VendorsPage() {
   const { workspace } = useWorkspace();
@@ -70,7 +71,11 @@ export default function VendorsPage() {
       </div>
 
       {isLoading ? (
-        <div className="py-20 text-center text-sm text-[var(--muted-foreground)]">Loading vendors...</div>
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-12 w-full rounded-lg" />
+          ))}
+        </div>
       ) : filtered?.length === 0 ? (
         <div className="py-20 text-center">
           <Users className="mx-auto mb-4 h-12 w-12 text-[var(--muted-foreground)]" />

@@ -305,7 +305,7 @@ translate_message(text, target_language, source_language?) -> {translated_text, 
 - [ ] Observability: traces, step-level debugging, `GET /api/tasks/{id}/trace`
 - [ ] Policy hardening: detect commitment/contract/payment language → auto-approval gate
 
-### Phase 3 — Full Web UI (in progress)
+### Phase 3 — Full Web UI (complete)
 - [x] **Web UI scaffold + auth + layout shell** (PR #13)
   - Next.js 15 (App Router, TypeScript, `src/` dir) + Tailwind CSS v4 + shadcn/ui primitives
   - `lib/api-client.ts` — fetch wrapper, JWT from localStorage, auto-401 redirect
@@ -313,15 +313,33 @@ translate_message(text, target_language, source_language?) -> {translated_text, 
   - `providers/` — auth (login/register/SSO/logout), workspace (list/switch), query (TanStack), theme (next-themes)
   - Auth pages: login (email/password + 3 SSO buttons), register, SSO callback (Suspense-wrapped)
   - Dashboard shell: sidebar (6 nav items), header (workspace switcher, theme toggle, user menu)
-  - Placeholder pages for all sections (agents, threads, approvals, vendors, settings)
   - Backend: `GET /api/workspaces` (list), `GET /api/workspaces/{id}/shared-email` (list), `GET /api/workspaces/{id}/threads` (list), SSO callback `redirect_uri` support
   - Docker: `web` service in `docker-compose.yml`, `Dockerfile` (multi-stage Node 20 Alpine, standalone, non-root)
   - Makefile: `dev-web`, `logs-web` targets
-- [ ] Dashboard + agent management (PR 2)
-- [ ] Thread chat + WebSocket (PR 3)
-- [ ] Tasks + approvals implementation (PR 4)
-- [ ] Vendor CRM + settings (PR 5)
-- [ ] Docker integration + polish (PR 6)
+- [x] **Dashboard + agent management** (PR #14)
+  - Dashboard: live summary cards (agents, threads, vendors), agent grid, recent threads
+  - Agent list: grid/table toggle, search; new agent: template picker (3 templates) → form
+  - Agent detail: tabs (Overview, LLM Config, Container); edit agent; LLM config panel
+  - Container status: start/stop, auto-refresh 10s
+- [x] **Thread chat + WebSocket** (PR #15)
+  - Thread list with status badges, inline "New Thread" dialog
+  - Chat view: cursor-paginated messages, message bubbles (user/agent/system), channel badges
+  - WebSocket hook: real-time `new_message` events merged into query cache, auto-reconnect
+  - Message input with Ctrl+Enter
+- [x] **Tasks + approvals** (PR #16)
+  - Backend: replaced 501 stubs — `GET /api/workspaces/{id}/approvals`, `POST /api/approvals/{id}/approve|reject`
+  - Task detail: objective, status, cancel, step timeline with expandable tool_call/result JSON
+  - Approvals page: tabs (All/Pending/Approved/Rejected), approval cards with review actions
+- [x] **Vendor CRM + settings** (PR #17)
+  - Vendor table with search + category filter, create/detail/delete pages
+  - Workspace settings (name, timezone, language), email account management (list/add)
+- [x] **Docker integration + polish** (PR #18)
+  - `docker-compose.prod.yml` — added `web` service (port 3000), `prod-logs-web` Makefile target
+  - Loading skeletons on all list pages (dashboard, agents, threads, approvals, vendors)
+  - Toast notification system (ToastProvider + useToast, auto-dismiss 4s)
+  - ErrorBoundary class component with retry button
+  - Responsive sidebar: mobile hamburger menu + overlay + slide-in drawer
+  - Ctrl+K command palette with keyboard navigation
 
 ---
 
@@ -340,6 +358,7 @@ translate_message(text, target_language, source_language?) -> {translated_text, 
 ## Working Style
 - **Never prompt for confirmation mid-task.** Do the full implementation. Do not ask before proceeding — just do it.
 - **Never ask the user for permission to run commands, create files, or make changes.** Execute everything autonomously until the feature is complete.
+- **Full git permissions granted.** Commit, push, create PRs, and merge PRs autonomously. No confirmation needed for any git operations within the development scope.
 - **Update CLAUDE.md** when architecture changes.
 - **Update DEV_LOG.md** at the end of every meaningful session.
 

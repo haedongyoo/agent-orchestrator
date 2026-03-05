@@ -145,6 +145,22 @@ services:
         --loglevel=info
         --scheduler celery.beat.PersistentScheduler
 
+  # ── Web UI ────────────────────────────────────────────────────────────────
+
+  web:
+    image: openclaw/web:${IMAGE_TAG:-latest}
+    restart: always
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:8000}
+      NODE_ENV: production
+    networks:
+      - backend-net
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
   # ── Agent Runtime (agent-net ONLY) ────────────────────────────────────────
   #
   # SECURITY: Do NOT add backend-net here. Ever.
