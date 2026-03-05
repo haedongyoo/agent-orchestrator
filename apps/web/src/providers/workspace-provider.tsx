@@ -3,7 +3,7 @@
 import { createContext, useContext, useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { Workspace } from "@/lib/types";
+import type { Workspace, WorkspaceCreate } from "@/lib/types";
 import { useAuth } from "./auth-provider";
 
 interface WorkspaceContextValue {
@@ -11,6 +11,7 @@ interface WorkspaceContextValue {
   workspaces: Workspace[];
   isLoading: boolean;
   switchWorkspace: (id: string) => void;
+  createWorkspace: (data: WorkspaceCreate) => Promise<Workspace>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -41,6 +42,17 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   const workspace = workspaces.find((w) => w.id === activeId) ?? null;
 
+  const createWorkspace = useCallback(
+    async (data: WorkspaceCreate) => {
+      const ws = await api.post<Workspace>("/api/workspaces", data);
+      await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      setActiveId(ws.id);
+      localStorage.setItem("workspace_id", ws.id);
+      return ws;
+    },
+    [queryClient],
+  );
+
   const switchWorkspace = useCallback(
     (id: string) => {
       setActiveId(id);
@@ -56,7 +68,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <WorkspaceContext.Provider
-      value={{ workspace, workspaces, isLoading, switchWorkspace }}
+      value={{ workspace, workspaces, isLoading, switchWorkspace, createWorkspace }}
     >
       {children}
     </WorkspaceContext.Provider>

@@ -1,10 +1,12 @@
 "use client";
 
-import { LogOut, ChevronDown, Moon, Sun } from "lucide-react";
+import { useState } from "react";
+import { LogOut, ChevronDown, Moon, Sun, Plus } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/providers/auth-provider";
 import { useWorkspace } from "@/providers/workspace-provider";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -17,8 +19,23 @@ import {
 
 export function Header() {
   const { user, logout } = useAuth();
-  const { workspace, workspaces, switchWorkspace } = useWorkspace();
+  const { workspace, workspaces, switchWorkspace, createWorkspace } = useWorkspace();
   const { theme, setTheme } = useTheme();
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    setCreating(true);
+    try {
+      await createWorkspace({ name: newName.trim() });
+      setNewName("");
+      setShowCreate(false);
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const initials = user?.email
     ? user.email.substring(0, 2).toUpperCase()
@@ -50,6 +67,34 @@ export function Header() {
               )}
             </DropdownMenuItem>
           ))}
+          <DropdownMenuSeparator />
+          {showCreate ? (
+            <div className="px-2 py-1.5 space-y-2" onClick={(e) => e.stopPropagation()}>
+              <Input
+                placeholder="Workspace name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                autoFocus
+              />
+              <div className="flex gap-1">
+                <Button size="sm" className="h-7 text-xs" onClick={handleCreate} disabled={creating || !newName.trim()}>
+                  {creating ? "Creating..." : "Create"}
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setShowCreate(false); setNewName(""); }}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <button
+              className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)]"
+              onClick={(e) => { e.stopPropagation(); setShowCreate(true); }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              New workspace
+            </button>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
