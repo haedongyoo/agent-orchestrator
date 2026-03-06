@@ -367,6 +367,7 @@ translate_message(text, target_language, source_language?) -> {translated_text, 
 - **Never prompt for confirmation mid-task.** Do the full implementation. Do not ask before proceeding — just do it.
 - **Never ask the user for permission to run commands, create files, or make changes.** Execute everything autonomously until the feature is complete.
 - **Full git permissions granted.** Commit, push, create PRs, and merge PRs autonomously. No confirmation needed for any git operations within the development scope.
+- **Git committer identity:** Always use `git config user.name "haedongyoo"` and `git config user.email "haedong.yoo@gmail.com"` before committing. Never commit as "Family" or any other identity.
 - **Update CLAUDE.md** when architecture changes.
 - **Update DEV_LOG.md** at the end of every meaningful session.
 
