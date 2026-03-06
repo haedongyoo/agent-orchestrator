@@ -84,7 +84,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "8100:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -200,19 +200,19 @@ services:
       context: ./apps/web
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000
-        NEXT_PUBLIC_WS_URL: ws://localhost:8000
+        NEXT_PUBLIC_API_URL: http://localhost:8100
+        NEXT_PUBLIC_WS_URL: ws://localhost:8100
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      NEXT_PUBLIC_WS_URL: ws://localhost:8000
+      NEXT_PUBLIC_API_URL: http://localhost:8100
+      NEXT_PUBLIC_WS_URL: ws://localhost:8100
     networks:
       - backend-net
     depends_on:
       api:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "3100:3000"
 
   # ── One-shot migration runner ──────────────────────────────────────────────
   #

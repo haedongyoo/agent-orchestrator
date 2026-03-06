@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     # App
     app_env: str = "development"
     log_level: str = "DEBUG"
-    allowed_origins: str = "http://localhost:3000"
+    allowed_origins: str = "http://localhost:3000,http://localhost:3100"
 
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/openclaw"
