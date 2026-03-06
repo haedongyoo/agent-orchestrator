@@ -25,6 +25,7 @@ celery_app = Celery(
         "app.tasks.vendor_ops",         # vendor/contractor CRM upserts from agents
         "app.tasks.approval_handler",   # agent approval requests
         "app.tasks.container_ops",      # start/stop agent containers (Docker socket)
+        "app.tasks.container_monitor",  # periodic container health checks (beat)
     ],
 )
 
