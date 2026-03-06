@@ -41,10 +41,10 @@ def handle_step_result(result: dict) -> None:
 
 async def _handle(result: dict) -> None:
     from sqlalchemy import select
-    from app.db.session import AsyncSessionLocal
+    from app.db.session import make_session_factory
     from app.models.task import TaskStep, Task
 
-    async with AsyncSessionLocal() as db:
+    async with make_session_factory()() as db:
         step_result = await db.execute(
             select(TaskStep).where(TaskStep.id == uuid.UUID(result["step_id"]))
         )

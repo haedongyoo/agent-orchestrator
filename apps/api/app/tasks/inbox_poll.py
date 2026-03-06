@@ -28,11 +28,11 @@ def poll_all_inboxes() -> dict:
 
 
 async def _poll() -> int:
-    from app.db.session import AsyncSessionLocal
+    from app.db.session import make_session_factory
     from app.models.workspace import SharedEmailAccount
     from sqlalchemy import select
 
-    async with AsyncSessionLocal() as db:
+    async with make_session_factory()() as db:
         result = await db.execute(
             select(SharedEmailAccount).where(SharedEmailAccount.is_active == True)  # noqa: E712
         )
@@ -60,7 +60,7 @@ async def _poll_account(account) -> None:
       2. First entry in References header → match Thread.linked_email_thread_id
       3. No match → create a new Thread linked to this message's Message-ID
     """
-    from app.db.session import AsyncSessionLocal
+    from app.db.session import make_session_factory
     from app.models.message import Message
     from app.models.task import Task
     from app.models.workspace import Workspace
@@ -81,7 +81,7 @@ async def _poll_account(account) -> None:
     if not messages:
         return
 
-    async with AsyncSessionLocal() as db:
+    async with make_session_factory()() as db:
         # Resolve workspace owner for Task.created_by FK
         ws_result = await db.execute(
             select(Workspace).where(Workspace.id == account.workspace_id)

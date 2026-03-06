@@ -36,11 +36,12 @@ def start_agent_container(agent_id: str) -> dict:
 
 
 async def _start(agent_id: str) -> dict:
-    from app.db.session import AsyncSessionLocal
+    from app.db.session import make_session_factory
     from app.models.agent import Agent
     from app.services.container_manager import ContainerManager
 
-    async with AsyncSessionLocal() as db:
+    SessionLocal = make_session_factory()
+    async with SessionLocal() as db:
         agent = await db.get(Agent, uuid.UUID(agent_id))
         if not agent:
             return {"success": False, "error": "Agent not found"}
@@ -72,10 +73,11 @@ def stop_agent_container(agent_id: str) -> dict:
 
 
 async def _stop(agent_id: str) -> dict:
-    from app.db.session import AsyncSessionLocal
+    from app.db.session import make_session_factory
     from app.services.container_manager import ContainerManager
 
-    async with AsyncSessionLocal() as db:
+    SessionLocal = make_session_factory()
+    async with SessionLocal() as db:
         manager = ContainerManager(db=db)
         await manager.stop(uuid.UUID(agent_id))
         await db.commit()

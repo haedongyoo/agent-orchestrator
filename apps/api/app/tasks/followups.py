@@ -69,11 +69,11 @@ async def _do_schedule(request: dict) -> dict:
         return {"success": False, "error": f"Invalid field: {exc}"}
 
     from sqlalchemy import select
-    from app.db.session import AsyncSessionLocal
+    from app.db.session import make_session_factory
     from app.models.task import Task
     from app.services.orchestrator.scheduler import Scheduler
 
-    async with AsyncSessionLocal() as db:
+    async with make_session_factory()() as db:
         # Find the latest running task for this thread
         result = await db.execute(
             select(Task)
@@ -133,11 +133,11 @@ async def _dispatch_followup(
     message: str,
 ) -> None:
     from sqlalchemy import select
-    from app.db.session import AsyncSessionLocal
+    from app.db.session import make_session_factory
     from app.models.task import Task, TaskStep
     from app.services.orchestrator.router import OrchestratorRouter
 
-    async with AsyncSessionLocal() as db:
+    async with make_session_factory()() as db:
         task = await db.get(Task, uuid.UUID(task_id))
         if not task or task.status in ("done", "failed"):
             log.info("followup.task_closed", task_id=task_id)

@@ -23,3 +23,22 @@ async def get_db() -> AsyncSession:
         except Exception:
             await session.rollback()
             raise
+
+
+def make_session_factory() -> async_sessionmaker[AsyncSession]:
+    """
+    Create a fresh engine + session factory not bound to any event loop.
+
+    Use this inside Celery tasks that call asyncio.run(), since the
+    module-level engine gets bound to the wrong loop in forked workers.
+    """
+    fresh_engine = create_async_engine(
+        settings.database_url,
+        echo=False,
+        pool_pre_ping=True,
+    )
+    return async_sessionmaker(
+        bind=fresh_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )

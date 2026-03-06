@@ -16,7 +16,7 @@ import asyncio
 import structlog
 
 from app.worker import celery_app
-from app.db.session import AsyncSessionLocal
+from app.db.session import make_session_factory
 from app.services.container_manager import ContainerManager, MAX_AUTO_RESTARTS
 from app.models.container import AgentContainer
 from app.models.agent import Agent
@@ -40,7 +40,8 @@ def refresh_all_containers() -> dict:
 
 
 async def _run_refresh() -> list[dict]:
-    async with AsyncSessionLocal() as db:
+    SessionLocal = make_session_factory()
+    async with SessionLocal() as db:
         manager = ContainerManager(db=db)
         updates = await manager.refresh_all()
 

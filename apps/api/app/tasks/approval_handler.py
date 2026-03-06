@@ -54,10 +54,10 @@ async def _do_create(request: dict) -> dict:
     thread_id_raw = request.get("thread_id")
     thread_id = uuid.UUID(str(thread_id_raw)) if thread_id_raw else None
 
-    from app.db.session import AsyncSessionLocal
+    from app.db.session import make_session_factory
     from app.models.approval import Approval
 
-    async with AsyncSessionLocal() as db:
+    async with make_session_factory()() as db:
         approval = Approval(
             workspace_id=workspace_id,
             approval_type=approval_type,

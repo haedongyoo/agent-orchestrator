@@ -51,10 +51,10 @@ async def _do_upsert(request: dict) -> dict:
         log.warning("vendor_ops.upsert.invalid_workspace_id", workspace_id=workspace_id_raw)
         return {"success": False, "error": f"Invalid workspace_id: {workspace_id_raw}"}
 
-    from app.db.session import AsyncSessionLocal
+    from app.db.session import make_session_factory
     from app.services.vendors import upsert_vendor
 
-    async with AsyncSessionLocal() as db:
+    async with make_session_factory()() as db:
         vendor = await upsert_vendor(
             db,
             workspace_id=workspace_id,
