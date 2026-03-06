@@ -27,7 +27,7 @@ log = structlog.get_logger()
 MONITOR_INTERVAL_SECONDS = 30  # configured in worker.py beat_schedule
 
 
-@celery_app.task(name="app.tasks.container_monitor.refresh_all_containers")
+@celery_app.task(name="app.tasks.container_monitor.refresh_all_containers", queue="orchestrator")
 def refresh_all_containers() -> dict:
     """
     Poll Docker for every active agent container and reconcile DB state.

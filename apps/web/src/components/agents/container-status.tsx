@@ -51,9 +51,14 @@ export function ContainerStatus({ agentId }: { agentId: string }) {
 
   const statusColor = {
     running: "bg-green-500",
+    starting: "bg-yellow-500",
+    stopped: "bg-zinc-400",
+    crashed: "bg-red-500",
     exited: "bg-red-500",
     created: "bg-yellow-500",
+    no_container: "bg-zinc-400",
     not_found: "bg-zinc-400",
+    unknown: "bg-zinc-400",
   }[data?.status || "not_found"] || "bg-zinc-400";
 
   return (

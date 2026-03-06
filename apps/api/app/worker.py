@@ -38,16 +38,19 @@ celery_app.conf.update(
     task_track_started=True,
     worker_prefetch_multiplier=1,
     task_acks_late=True,
+    task_default_queue="orchestrator",
     beat_schedule={
         # Check all agent container statuses every 30 seconds
         "monitor-containers": {
             "task": "app.tasks.container_monitor.refresh_all_containers",
             "schedule": 30.0,
+            "options": {"queue": "orchestrator"},
         },
         # Poll shared email inboxes every 2 minutes
         "poll-inboxes": {
             "task": "app.tasks.inbox_poll.poll_all_inboxes",
             "schedule": 120.0,
+            "options": {"queue": "orchestrator"},
         },
     },
 )
