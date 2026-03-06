@@ -77,7 +77,7 @@ class ContainerManager:
         # Stop any existing container for this agent before spawning a new one
         existing = await self._get_record(agent.id)
         if existing and existing.container_id:
-            await self._stop_docker_container(existing.container_id, remove=True)
+            self._stop_docker_container(existing.container_id, remove=True)
 
         # Spawn the new container (sync Docker call)
         container_id = self._run_container(
@@ -128,7 +128,7 @@ class ContainerManager:
             return
 
         log.info("container_manager.stop", agent_id=str(agent_id), container_id=record.container_id[:12])
-        await self._stop_docker_container(record.container_id, remove=remove)
+        self._stop_docker_container(record.container_id, remove=remove)
 
         record.status = "stopped"
         record.stopped_at = utcnow()
