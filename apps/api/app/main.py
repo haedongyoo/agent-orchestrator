@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.db.session import engine, Base
-from app.routers import auth, workspaces, agents, threads, tasks, approvals, llm_configs, role_templates, vendors
+from app.routers import auth, workspaces, agents, threads, tasks, approvals, llm_configs, role_templates, vendors, email_oauth
 from app.services.connectors import telegram, webchat
 from app.services.pubsub import subscribe_and_broadcast
 
@@ -60,6 +60,7 @@ app.include_router(vendors.router,          prefix="/api/workspaces", tags=["ven
 # ── Connector endpoints (webhooks) ────────────────────────────────────────────
 app.include_router(telegram.router,    prefix="/api/connectors", tags=["connectors"])
 app.include_router(webchat.router,     prefix="/ws",             tags=["websocket"])
+app.include_router(email_oauth.router, prefix="/api/email-oauth", tags=["email-oauth"])
 
 
 @app.get("/health", tags=["health"])

@@ -8,7 +8,7 @@ Update this file at the end of every meaningful dev session.
 - [ ] Test end-to-end chat with Gemini 2.5 Flash once Google quota activates
 - [x] WebSocket push for agent responses (Redis pub/sub bridge)
 - [x] Observability: step-level trace API (`GET /api/tasks/{id}/trace`)
-- [ ] Email OAuth (Gmail/Graph) — Phase 2 remaining item
+- [x] Email OAuth (Gmail/Graph) — Gmail + Microsoft Graph XOAUTH2
 
 ---
 

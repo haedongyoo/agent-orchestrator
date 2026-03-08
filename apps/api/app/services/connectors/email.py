@@ -5,26 +5,41 @@ Handles:
   - Outbound: send_email — SMTP via aiosmtplib
   - Inbound:  poll_inbox — IMAP via aioimaplib
 
-MVP credential storage:
-  credentials_ref is a Fernet-encrypted JSON blob (see services/secrets.py):
+Credential storage (Fernet-encrypted JSON):
+  Password auth:
   {
-    "smtp_host": "smtp.example.com",   (optional — falls back to config.smtp_host)
-    "smtp_port": 587,                  (optional — falls back to config.smtp_port)
-    "imap_host": "imap.example.com",   (optional — falls back to config.imap_host)
-    "imap_port": 993,                  (optional — falls back to config.imap_port)
+    "smtp_host": "smtp.example.com",
+    "smtp_port": 587,
+    "imap_host": "imap.example.com",
+    "imap_port": 993,
     "username":  "user@example.com",
     "password":  "secret"
   }
 
-  Production: replace _resolve_credentials() with a Vault Transit read
-  using credentials_ref as the secret path.
+  OAuth2 (Gmail/Graph):
+  {
+    "auth_type":      "oauth2",
+    "provider":       "gmail" | "graph",
+    "email":          "user@example.com",
+    "access_token":   "ya29.xxx",
+    "refresh_token":  "1//xxx",
+    "token_expiry":   "2026-03-07T21:00:00+00:00",
+    "smtp_host":      "smtp.gmail.com",
+    "smtp_port":      587,
+    "imap_host":      "imap.gmail.com",
+    "imap_port":      993,
+  }
+
+  Production: replace _resolve_credentials() with a Vault Transit read.
 """
 from __future__ import annotations
 
+import base64
 import email as email_lib
 import json
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import List, Optional
@@ -55,11 +70,21 @@ def _resolve_credentials(credentials_ref: str) -> dict:
     """
     Decrypt and parse SMTP/IMAP credentials from a Fernet-encrypted JSON blob.
 
-    MVP: credentials_ref IS the encrypted token.
-    Production: treat credentials_ref as a Vault path and do a Vault read.
+    Supports both password auth (username/password) and OAuth2 (access_token/refresh_token).
     """
     raw = decrypt_api_key(credentials_ref)
     return json.loads(raw)
+
+
+def _is_oauth(creds: dict) -> bool:
+    """Check if credentials use OAuth2 auth."""
+    return creds.get("auth_type") == "oauth2"
+
+
+def _build_xoauth2_string(email_addr: str, access_token: str) -> str:
+    """Build XOAUTH2 authentication string for SMTP/IMAP."""
+    auth_string = f"user={email_addr}\x01auth=Bearer {access_token}\x01\x01"
+    return base64.b64encode(auth_string.encode()).decode()
 
 
 # ── Outbound SMTP ──────────────────────────────────────────────────────────────
@@ -102,14 +127,25 @@ async def send_email(
     smtp_port = int(creds.get("smtp_port", settings.smtp_port))
 
     import aiosmtplib  # lazy — not installed locally; lives in Docker image
-    await aiosmtplib.send(
-        msg,
-        hostname=smtp_host,
-        port=smtp_port,
-        username=creds["username"],
-        password=creds["password"],
-        start_tls=True,
-    )
+
+    if _is_oauth(creds):
+        # OAuth2 XOAUTH2 SMTP authentication
+        smtp = aiosmtplib.SMTP(hostname=smtp_host, port=smtp_port, start_tls=True)
+        await smtp.connect()
+        xoauth2 = _build_xoauth2_string(creds["email"], creds["access_token"])
+        await smtp.auth("XOAUTH2", lambda: xoauth2)
+        await smtp.send_message(msg)
+        await smtp.quit()
+    else:
+        # Password-based SMTP authentication
+        await aiosmtplib.send(
+            msg,
+            hostname=smtp_host,
+            port=smtp_port,
+            username=creds["username"],
+            password=creds["password"],
+            start_tls=True,
+        )
 
     log.info("email.sent", message_id=message_id, to=email.to, subject=email.subject)
     return message_id
@@ -149,7 +185,12 @@ async def poll_inbox(
     client = aioimaplib.IMAP4_SSL(host=imap_host, port=imap_port)
     await client.wait_hello_from_server()
 
-    login_resp = await client.login(creds["username"], creds["password"])
+    if _is_oauth(creds):
+        # OAuth2 XOAUTH2 IMAP authentication
+        xoauth2 = _build_xoauth2_string(creds["email"], creds["access_token"])
+        login_resp = await client.authenticate("XOAUTH2", lambda: xoauth2)
+    else:
+        login_resp = await client.login(creds["username"], creds["password"])
     _check_imap_ok(login_resp, "login")
 
     await client.select(mailbox)

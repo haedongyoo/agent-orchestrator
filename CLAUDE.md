@@ -209,6 +209,10 @@ repo/
 - `POST /api/approvals/{approvalId}/approve`
 - `POST /api/approvals/{approvalId}/reject`
 
+### Email OAuth
+- `GET /api/email-oauth/{provider}/authorize?workspace_id=...` — redirect to Gmail/Microsoft consent page
+- `GET /api/email-oauth/{provider}/callback?code=...&state=...` — exchange code, create SharedEmailAccount
+
 ### Realtime
 - `WS /ws/threads/{threadId}` — events: `new_message`, `task_status`, `approval_requested`, `approval_decided`
 
@@ -295,8 +299,13 @@ schedule_followup(task_id, when, payload) -> schedule_id
   - `tasks/followups.py` — `handle_schedule_request` Celery task (finds active task for thread, delegates to Scheduler); `fire_followup` ETA task (creates new TaskStep, dispatches to agent queue via OrchestratorRouter)
   - Agent `scheduler_tool.py` — implemented: posts `handle_schedule_request` to orchestrator queue via Celery `send_task()`
   - 152/152 tests passing (9 new scheduler tests)
-- [ ] Email provider OAuth (Gmail/Graph)
-- [x] **Observability: step-level trace** (PR #TBD)
+- [x] **Email provider OAuth (Gmail/Graph)** (PR #31)
+  - `services/email_oauth.py`: OAuth2 flows for Gmail + Microsoft Graph (auth URL, code exchange, token refresh, credential packaging)
+  - `routers/email_oauth.py`: `GET /api/email-oauth/{provider}/authorize`, `GET /api/email-oauth/{provider}/callback`
+  - Email connector updated: XOAUTH2 for SMTP (`aiosmtplib.auth`) and IMAP (`aioimaplib.authenticate`) when `auth_type=oauth2`
+  - Encrypted credentials_ref includes: `access_token`, `refresh_token`, `token_expiry`, provider-specific SMTP/IMAP hosts
+  - 174 tests passing (15 new email OAuth tests)
+- [x] **Observability: step-level trace** (PR #30)
   - `GET /api/tasks/{id}/trace` — returns task, steps (with agent names, tool calls, results, durations), audit logs, total_duration_ms
   - Steps joined with Agent for name display; duration_ms computed from created_at→updated_at delta
   - Audit logs filtered by target_type=task, target_id=task.id
