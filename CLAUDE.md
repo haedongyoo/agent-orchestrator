@@ -201,6 +201,7 @@ repo/
 ### Tasks
 - `POST /api/threads/{threadId}/tasks`
 - `GET /api/tasks/{taskId}`
+- `GET /api/tasks/{taskId}/trace` — step-level execution trace (steps + agent names + durations + audit logs)
 - `POST /api/tasks/{taskId}/cancel`
 
 ### Approvals
@@ -295,7 +296,11 @@ schedule_followup(task_id, when, payload) -> schedule_id
   - Agent `scheduler_tool.py` — implemented: posts `handle_schedule_request` to orchestrator queue via Celery `send_task()`
   - 152/152 tests passing (9 new scheduler tests)
 - [ ] Email provider OAuth (Gmail/Graph)
-- [ ] Observability: traces, step-level debugging, `GET /api/tasks/{id}/trace`
+- [x] **Observability: step-level trace** (PR #TBD)
+  - `GET /api/tasks/{id}/trace` — returns task, steps (with agent names, tool calls, results, durations), audit logs, total_duration_ms
+  - Steps joined with Agent for name display; duration_ms computed from created_at→updated_at delta
+  - Audit logs filtered by target_type=task, target_id=task.id
+  - 165 tests passing (6 new trace tests)
 - [ ] Policy hardening: detect commitment/contract/payment language → auto-approval gate
 
 ---

@@ -7,7 +7,7 @@ Update this file at the end of every meaningful dev session.
 
 - [ ] Test end-to-end chat with Gemini 2.5 Flash once Google quota activates
 - [ ] WebSocket push for agent responses (currently polling every 3s as fallback)
-- [ ] Observability: step-level trace UI (`GET /api/tasks/{id}/trace`)
+- [x] Observability: step-level trace API (`GET /api/tasks/{id}/trace`)
 - [ ] Email OAuth (Gmail/Graph) — Phase 2 remaining item
 
 ---
