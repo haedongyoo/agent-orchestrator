@@ -101,6 +101,7 @@ class AgentResponse(BaseModel):
     is_enabled: bool
     rate_limit_per_min: int
     max_concurrency: int
+    has_telegram_token: bool = False
     # telegram_bot_token_ref intentionally excluded — write-only
 
     model_config = {"from_attributes": True}
@@ -155,6 +156,12 @@ async def _get_agent(
     return agent
 
 
+def _agent_response(agent: Agent) -> AgentResponse:
+    resp = AgentResponse.model_validate(agent)
+    resp.has_telegram_token = bool(agent.telegram_bot_token_ref)
+    return resp
+
+
 # ── CRUD endpoints ─────────────────────────────────────────────────────────────
 
 @router.post("/{workspace_id}/agents", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)
@@ -179,7 +186,7 @@ async def create_agent(
     db.add(agent)
     await db.commit()
     await db.refresh(agent)
-    return AgentResponse.model_validate(agent)
+    return _agent_response(agent)
 
 
 @router.get("/{workspace_id}/agents", response_model=List[AgentResponse])
@@ -195,7 +202,7 @@ async def list_agents(
         select(Agent).where(Agent.workspace_id == workspace.id).order_by(Agent.created_at)
     )
     agents = result.scalars().all()
-    return [AgentResponse.model_validate(a) for a in agents]
+    return [_agent_response(a) for a in agents]
 
 
 @router.put("/{workspace_id}/agents/{agent_id}", response_model=AgentResponse)
@@ -227,7 +234,7 @@ async def update_agent(
 
     await db.commit()
     await db.refresh(agent)
-    return AgentResponse.model_validate(agent)
+    return _agent_response(agent)
 
 
 @router.delete("/{workspace_id}/agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

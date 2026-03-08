@@ -32,16 +32,45 @@ export function LLMConfigPanel({ agentId }: { agentId: string }) {
   // Populate from existing config
   useEffect(() => {
     if (config) {
-      const parts = config.model.split("/");
-      if (parts.length >= 2) {
-        setProviderId(parts[0]);
-        setModelId(config.model);
-      }
+      setModelId(config.model);
       setApiBaseUrl(config.api_base_url || "");
       setMaxTokens(config.max_tokens.toString());
       setTemperature(config.temperature.toString());
+
+      // Resolve provider by finding which provider owns this model
+      if (providers) {
+        const ownerProvider = providers.find((p) =>
+          // Will be populated once models load — for now match by prefix heuristic
+          config.model.startsWith(`${p.id}/`)
+        );
+        if (ownerProvider) {
+          setProviderId(ownerProvider.id);
+        } else {
+          // Fallback: check model prefix against known provider model prefixes
+          // e.g. "gemini/..." → provider "google", "gpt-..." → provider "openai"
+          const MODEL_PREFIX_TO_PROVIDER: Record<string, string> = {
+            "gemini": "google",
+            "gpt": "openai",
+            "o1": "openai",
+            "o3": "openai",
+          };
+          const prefix = config.model.split("/")[0];
+          const mappedProvider = MODEL_PREFIX_TO_PROVIDER[prefix] || prefix;
+          setProviderId(mappedProvider);
+        }
+      } else {
+        // Providers not loaded yet — use prefix as fallback
+        const prefix = config.model.split("/")[0];
+        const MODEL_PREFIX_TO_PROVIDER: Record<string, string> = {
+          "gemini": "google",
+          "gpt": "openai",
+          "o1": "openai",
+          "o3": "openai",
+        };
+        setProviderId(MODEL_PREFIX_TO_PROVIDER[prefix] || prefix);
+      }
     }
-  }, [config]);
+  }, [config, providers]);
 
   const handleSave = () => {
     setConfig.mutate({

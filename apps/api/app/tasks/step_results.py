@@ -43,6 +43,7 @@ async def _handle(result: dict) -> None:
     from sqlalchemy import select
     from app.db.session import make_session_factory
     from app.models.task import TaskStep, Task
+    from app.models.message import Message
 
     async with make_session_factory()() as db:
         step_result = await db.execute(
@@ -82,8 +83,37 @@ async def _handle(result: dict) -> None:
                 status=task.status,
             )
 
-        # TODO: V1 — if task still running, trigger planner for next steps
-        # TODO: V1 — broadcast task_status WebSocket event
+        # Save agent's response as a Message in the thread
+        if task and task.thread_id:
+            output = result.get("output", {})
+            agent_text = output.get("text", "")
+            is_truncated = output.get("truncated", False)
+
+            if not agent_text and is_truncated:
+                agent_text = (
+                    "[Agent reached maximum iterations without a final response. "
+                    "The model may need to be upgraded for better agent capabilities.]"
+                )
+            elif not agent_text and result.get("error"):
+                agent_text = f"[Agent error: {result['error']}]"
+            elif not agent_text and not result.get("success"):
+                agent_text = "[Agent failed to generate a response.]"
+
+            if agent_text:
+                agent_msg = Message(
+                    thread_id=task.thread_id,
+                    sender_type="agent",
+                    sender_id=step.agent_id,
+                    channel="web",
+                    content=agent_text,
+                )
+                db.add(agent_msg)
+                log.info(
+                    "step_results.message_created",
+                    thread_id=str(task.thread_id),
+                    agent_id=str(step.agent_id),
+                    text_length=len(agent_text),
+                )
 
         await db.commit()
         log.info("step_results.persisted", step_id=result["step_id"], status=step.status)

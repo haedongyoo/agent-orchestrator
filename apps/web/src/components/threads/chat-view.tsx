@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMessages, usePostMessage } from "@/hooks/use-messages";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { MessageBubble } from "./message-bubble";
 import { MessageInput } from "./message-input";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 interface ChatViewProps {
   threadId: string;
@@ -19,9 +20,12 @@ export function ChatView({ threadId, disabled = false }: ChatViewProps) {
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
+    refetch,
   } = useMessages(threadId);
   const postMessage = usePostMessage(threadId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [waitingForAgent, setWaitingForAgent] = useState(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Connect WebSocket for real-time updates
   useWebSocket(threadId);
@@ -32,8 +36,44 @@ export function ChatView({ threadId, disabled = false }: ChatViewProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [allMessages.length]);
 
+  // When waiting for agent, poll every 3 seconds for new messages
+  useEffect(() => {
+    if (waitingForAgent) {
+      pollIntervalRef.current = setInterval(() => {
+        refetch();
+      }, 3000);
+    } else {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    }
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [waitingForAgent, refetch]);
+
+  // Detect when an agent message arrives → stop waiting
+  useEffect(() => {
+    if (waitingForAgent && allMessages.length > 0) {
+      const lastMsg = allMessages[allMessages.length - 1];
+      if (lastMsg.sender_type === "agent") {
+        setWaitingForAgent(false);
+      }
+    }
+  }, [allMessages, waitingForAgent]);
+
   const handleSend = (content: string) => {
-    postMessage.mutate({ content, channel: "web" });
+    postMessage.mutate(
+      { content, channel: "web" },
+      {
+        onSuccess: () => {
+          setWaitingForAgent(true);
+        },
+      },
+    );
   };
 
   return (
@@ -69,6 +109,31 @@ export function ChatView({ threadId, disabled = false }: ChatViewProps) {
             ))}
           </div>
         )}
+
+        {/* Sending indicator */}
+        {postMessage.isPending && (
+          <div className="mt-3 flex justify-end">
+            <div className="flex items-center gap-2 rounded-2xl bg-[var(--primary)] px-4 py-2 text-[var(--primary-foreground)] opacity-60">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span className="text-sm">Sending...</span>
+            </div>
+          </div>
+        )}
+
+        {/* Bot thinking indicator */}
+        {waitingForAgent && !postMessage.isPending && (
+          <div className="mt-3 flex justify-start">
+            <div className="flex items-center gap-2 rounded-2xl bg-[var(--muted)] px-4 py-2 text-[var(--muted-foreground)]">
+              <div className="flex gap-1">
+                <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-current [animation-delay:0ms]" />
+                <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-current [animation-delay:150ms]" />
+                <span className="inline-block h-2 w-2 animate-bounce rounded-full bg-current [animation-delay:300ms]" />
+              </div>
+              <span className="text-sm">Agent is thinking...</span>
+            </div>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 

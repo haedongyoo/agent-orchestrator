@@ -159,13 +159,20 @@ export function AgentForm({ mode, initial, agent, onSubmit }: AgentFormProps) {
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="telegram-token">Telegram Bot Token (optional)</Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="telegram-token">Telegram Bot Token (optional)</Label>
+              {mode === "edit" && agent?.has_telegram_token && (
+                <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900 dark:text-green-300">
+                  Token set
+                </span>
+              )}
+            </div>
             <Input
               id="telegram-token"
               type="password"
               value={telegramToken}
               onChange={(e) => setTelegramToken(e.target.value)}
-              placeholder={mode === "edit" ? "Leave blank to keep current" : "Bot token from @BotFather"}
+              placeholder={mode === "edit" && agent?.has_telegram_token ? "Leave blank to keep current" : "Bot token from @BotFather"}
             />
           </div>
           {mode === "edit" && (

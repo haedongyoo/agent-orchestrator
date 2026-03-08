@@ -7,7 +7,7 @@ This file is the authoritative project reference for Claude Code. Read this befo
 
 ## Project Goal
 
-Build **OpenClaw Agents** — a service that runs multiple AI agents as "always-on employees" for 24/7 negotiation, sourcing, and workflow automation (furniture suppliers, material factories, local contractors, multi-language).
+Build **OpenClaw Agents** — a service that runs multiple AI agents as "always-on employees" for 24/7 negotiation, sourcing, and workflow automation (furniture suppliers, material factories, local contractors, multi-language). Nag hb
 
 Users configure agents with roles, connect channels (Telegram, Email, Web), and interact through a unified orchestration UI.
 
@@ -169,7 +169,7 @@ repo/
 - `agents`: id, workspace_id, name, role_prompt, allowed_tools (json), telegram_bot_token_ref, is_enabled, rate_limit_per_min, max_concurrency
 
 ### Conversations
-- `threads`: id, workspace_id, agent_id (FK → agents, nullable), title, status, linked_telegram_chat_id, linked_email_thread_id
+- `threads`: id, workspace_id, title, status, linked_telegram_chat_id, linked_email_thread_id
 - `messages`: id, thread_id, sender_type, sender_id, channel, content, metadata (json), created_at
 
 ### Tasks / Steps
@@ -223,7 +223,6 @@ send_telegram(chat_id, text, thread_id) -> message_id
 post_web_message(thread_id, text) -> message_id
 upsert_vendor(profile) -> vendor_id
 schedule_followup(task_id, when, payload) -> schedule_id
-translate_message(text, target_language, source_language?) -> {translated_text, source_language, target_language}
 ```
 
 ---
@@ -239,7 +238,7 @@ translate_message(text, target_language, source_language?) -> {translated_text, 
 - [x] **Alembic initial migration** — all 13 tables in `versions/001_initial_schema.py`
 - [x] **Workspace CRUD** — `POST/GET/PUT /api/workspaces`, shared email account management
 - [x] **Agent CRUD + role prompt** — `POST/GET/PUT/DELETE /api/workspaces/{id}/agents`
-  - `allowed_tools` validated against strict allowlist (8 tools)
+  - `allowed_tools` validated against strict allowlist (7 tools)
   - `telegram_bot_token_ref` write-only (never returned in responses)
   - Partial update (PUT) — only supplied fields changed
   - Container management endpoints (start/stop) with ownership checks
@@ -289,13 +288,7 @@ translate_message(text, target_language, source_language?) -> {translated_text, 
   - `tasks/vendor_ops.py` — `handle_vendor_upsert` Celery task on orchestrator queue; lazy DB imports for testability
   - Agent `vendor_tool.py` — implemented: posts to orchestrator queue via Celery `send_task()` (agents never reach Postgres)
   - 143/143 tests passing (18 new vendor tests)
-- [x] **Multi-language translation tool** (PR #12)
-  - `apps/agent/agent_runtime/tools/translate_tool.py` — `translate_message()` executes locally in agent container via LiteLLM
-  - Agent-local execution (no Redis round-trip; LLM already available in container)
-  - System prompt requests JSON `{"translated_text", "detected_source_language"}`; graceful plain-text fallback
-  - `max_tokens=4096` (translations don't need 32K)
-  - Added to VALID_TOOLS allowlist (8 tools) and all 3 role templates (Negotiator, Sourcing, Contractor)
-  - 159/159 tests passing (7 new translate tests)
+- [ ] Multi-language translation tool
 - [x] **Scheduler + follow-ups** (PR #10)
   - `services/orchestrator/scheduler.py` — `Scheduler.schedule_followup()` creates Celery ETA task; `cancel_followup()` calls `celery.control.revoke()`; schedule_id = Celery async result ID
   - `tasks/followups.py` — `handle_schedule_request` Celery task (finds active task for thread, delegates to Scheduler); `fire_followup` ETA task (creates new TaskStep, dispatches to agent queue via OrchestratorRouter)
@@ -303,51 +296,7 @@ translate_message(text, target_language, source_language?) -> {translated_text, 
   - 152/152 tests passing (9 new scheduler tests)
 - [ ] Email provider OAuth (Gmail/Graph)
 - [ ] Observability: traces, step-level debugging, `GET /api/tasks/{id}/trace`
-- [x] **Policy hardening** (PR #21)
-  - `services/orchestrator/content_analyzer.py` — regex-based commitment/payment/scope-change language detection
-  - `services/orchestrator/policy.py` — content analysis rule + email domain allowlist enforcement
-  - `models/approval.py` — added `commitment_detected`, `payment_detected`, `scope_change_detected` types
-  - `models/workspace.py` — added `allowed_email_domains` JSON column
-  - `tasks/approval_handler.py` — Celery task to process agent approval requests
-  - Agent `approval_tool.py` — wired: posts to orchestrator queue via Celery `send_task()`
-  - Frontend: risk badges + detected patterns on approval cards, email domain allowlist in settings
-  - 173/173 tests passing (26 new policy tests)
-
-### Phase 3 — Full Web UI (complete)
-- [x] **Web UI scaffold + auth + layout shell** (PR #13)
-  - Next.js 15 (App Router, TypeScript, `src/` dir) + Tailwind CSS v4 + shadcn/ui primitives
-  - `lib/api-client.ts` — fetch wrapper, JWT from localStorage, auto-401 redirect
-  - `lib/types.ts` — all TS interfaces matching backend Pydantic schemas
-  - `providers/` — auth (login/register/SSO/logout), workspace (list/switch), query (TanStack), theme (next-themes)
-  - Auth pages: login (email/password + 3 SSO buttons), register, SSO callback (Suspense-wrapped)
-  - Dashboard shell: sidebar (6 nav items), header (workspace switcher, theme toggle, user menu)
-  - Backend: `GET /api/workspaces` (list), `GET /api/workspaces/{id}/shared-email` (list), `GET /api/workspaces/{id}/threads` (list), SSO callback `redirect_uri` support
-  - Docker: `web` service in `docker-compose.yml`, `Dockerfile` (multi-stage Node 20 Alpine, standalone, non-root)
-  - Makefile: `dev-web`, `logs-web` targets
-- [x] **Dashboard + agent management** (PR #14)
-  - Dashboard: live summary cards (agents, threads, vendors), agent grid, recent threads
-  - Agent list: grid/table toggle, search; new agent: template picker (3 templates) → form
-  - Agent detail: tabs (Overview, LLM Config, Container); edit agent; LLM config panel
-  - Container status: start/stop, auto-refresh 10s
-- [x] **Thread chat + WebSocket** (PR #15)
-  - Thread list with status badges, inline "New Thread" dialog
-  - Chat view: cursor-paginated messages, message bubbles (user/agent/system), channel badges
-  - WebSocket hook: real-time `new_message` events merged into query cache, auto-reconnect
-  - Message input with Ctrl+Enter
-- [x] **Tasks + approvals** (PR #16)
-  - Backend: replaced 501 stubs — `GET /api/workspaces/{id}/approvals`, `POST /api/approvals/{id}/approve|reject`
-  - Task detail: objective, status, cancel, step timeline with expandable tool_call/result JSON
-  - Approvals page: tabs (All/Pending/Approved/Rejected), approval cards with review actions
-- [x] **Vendor CRM + settings** (PR #17)
-  - Vendor table with search + category filter, create/detail/delete pages
-  - Workspace settings (name, timezone, language), email account management (list/add)
-- [x] **Docker integration + polish** (PR #18)
-  - `docker-compose.prod.yml` — added `web` service (port 3000), `prod-logs-web` Makefile target
-  - Loading skeletons on all list pages (dashboard, agents, threads, approvals, vendors)
-  - Toast notification system (ToastProvider + useToast, auto-dismiss 4s)
-  - ErrorBoundary class component with retry button
-  - Responsive sidebar: mobile hamburger menu + overlay + slide-in drawer
-  - Ctrl+K command palette with keyboard navigation
+- [ ] Policy hardening: detect commitment/contract/payment language → auto-approval gate
 
 ---
 
@@ -364,10 +313,7 @@ translate_message(text, target_language, source_language?) -> {translated_text, 
 ---
 
 ## Working Style
-- **Never prompt for confirmation mid-task.** Do the full implementation. Do not ask before proceeding — just do it.
-- **Never ask the user for permission to run commands, create files, or make changes.** Execute everything autonomously until the feature is complete.
-- **Full git permissions granted.** Commit, push, create PRs, and merge PRs autonomously. No confirmation needed for any git operations within the development scope.
-- **Git committer identity:** Always use `git config user.name "haedongyoo"` and `git config user.email "haedong.yoo@gmail.com"` before committing. Never commit as "Family" or any other identity.
+- **Never prompt for confirmation mid-task.** Do the full implementation. Only ask right before final testing.
 - **Update CLAUDE.md** when architecture changes.
 - **Update DEV_LOG.md** at the end of every meaningful session.
 

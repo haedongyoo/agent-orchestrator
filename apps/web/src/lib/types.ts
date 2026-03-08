@@ -62,6 +62,7 @@ export interface Agent {
   is_enabled: boolean;
   rate_limit_per_min: number;
   max_concurrency: number;
+  has_telegram_token: boolean;
   created_at: string;
   updated_at: string;
 }

@@ -67,7 +67,8 @@ def run_step(self, payload_dict: dict) -> dict:
             step_id=result.step_id,
             success=result.success,
         )
-        return {
+
+        result_dict = {
             "step_id": result.step_id,
             "task_id": result.task_id,
             "agent_id": result.agent_id,
@@ -76,6 +77,34 @@ def run_step(self, payload_dict: dict) -> dict:
             "error": result.error,
         }
 
+        # Post result to orchestrator queue for DB persistence + message creation
+        celery_app.send_task(
+            "app.tasks.step_results.handle_step_result",
+            args=[result_dict],
+            queue="orchestrator",
+        )
+
+        return result_dict
+
     except Exception as exc:
         log.error("agent.step.failed", error=str(exc))
+
+        # Post failure result to orchestrator before retrying
+        error_result = {
+            "step_id": payload_dict.get("step_id", ""),
+            "task_id": payload_dict.get("task_id", ""),
+            "agent_id": payload_dict.get("agent_id", ""),
+            "success": False,
+            "output": {},
+            "error": str(exc),
+        }
+        try:
+            celery_app.send_task(
+                "app.tasks.step_results.handle_step_result",
+                args=[error_result],
+                queue="orchestrator",
+            )
+        except Exception:
+            log.error("agent.step.result_post_failed", error=str(exc))
+
         raise self.retry(exc=exc)

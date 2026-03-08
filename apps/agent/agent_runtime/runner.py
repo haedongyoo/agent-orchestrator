@@ -44,8 +44,9 @@ LLM_API_KEY  = os.getenv("LLM_API_KEY")    # provider API key (LiteLLM also read
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "32768"))  # claude-opus-4-6 supports up to 32K output tokens
 
 # ── Rate-limit retry config ────────────────────────────────────────────────────
-DEFAULT_RETRY_AFTER  = 60    # seconds to wait when retry-after header is absent
-MAX_RATE_LIMIT_WAIT  = 7200  # 2-hour ceiling on total accumulated wait (safety valve)
+DEFAULT_RETRY_AFTER  = 10    # seconds to wait when retry-after header is absent
+MAX_RATE_LIMIT_WAIT  = 120   # 2-minute ceiling — fail fast, don't block the worker
+MAX_RATE_LIMIT_RETRIES = 5   # give up after 5 consecutive retries
 
 # Disable LiteLLM's own telemetry and verbose logging — we use structlog
 litellm.telemetry = False
@@ -195,8 +196,15 @@ class AgentRunner:
 
             messages.extend(tool_results)
 
+        # Extract last assistant text content if any (model may have produced text alongside tool calls)
+        last_text = ""
+        for m in reversed(messages):
+            if m.get("role") == "assistant" and m.get("content"):
+                last_text = m["content"]
+                break
+
         return {
-            "text": "",
+            "text": last_text,
             "iterations": max_iterations,
             "truncated": True,
             "model": self.model,
@@ -235,6 +243,9 @@ class AgentRunner:
             try:
                 return await litellm.acompletion(**kwargs)
 
+            except litellm.exceptions.AuthenticationError:
+                raise  # bad API key — fail immediately, don't retry
+
             except litellm.exceptions.RateLimitError as exc:
                 wait = _parse_retry_after(exc)
                 total_waited, attempt = await self._wait_and_retry(
@@ -256,10 +267,11 @@ class AgentRunner:
         reason: str,
     ) -> tuple[float, int]:
         """Log, enforce ceiling, sleep, return updated counters."""
-        if total_waited + wait > MAX_RATE_LIMIT_WAIT:
+        if attempt >= MAX_RATE_LIMIT_RETRIES or total_waited + wait > MAX_RATE_LIMIT_WAIT:
             log.error(
                 "agent.rate_limit.ceiling_reached",
                 reason=reason,
+                attempt=attempt,
                 total_waited_seconds=total_waited,
                 would_wait_seconds=wait,
                 ceiling_seconds=MAX_RATE_LIMIT_WAIT,

@@ -73,7 +73,8 @@ PROVIDERS: list[ProviderEntry] = [
         "docs_url": "https://aistudio.google.com/apikey",
         "note": "",
         "models": [
-            {"id": "gemini/gemini-2.0-flash",  "name": "Gemini 2.0 Flash",  "recommended": True},
+            {"id": "gemini/gemini-2.5-flash",  "name": "Gemini 2.5 Flash",  "recommended": True},
+            {"id": "gemini/gemini-2.0-flash",  "name": "Gemini 2.0 Flash",  "recommended": False},
             {"id": "gemini/gemini-1.5-pro",    "name": "Gemini 1.5 Pro",    "recommended": False},
             {"id": "gemini/gemini-1.5-flash",  "name": "Gemini 1.5 Flash",  "recommended": False},
         ],
@@ -118,6 +119,7 @@ PROVIDERS: list[ProviderEntry] = [
         "note": "Run models locally — no API key required. Make sure your Ollama server is reachable from the agent containers on agent-net.",
         "models": [
             {"id": "ollama/llama3.3",   "name": "Llama 3.3",  "recommended": True},
+            {"id": "ollama/llama3.2",   "name": "Llama 3.2",  "recommended": False},
             {"id": "ollama/llama3.1",   "name": "Llama 3.1",  "recommended": False},
             {"id": "ollama/qwen2.5",    "name": "Qwen 2.5",   "recommended": False},
             {"id": "ollama/mistral",    "name": "Mistral",     "recommended": False},

@@ -2,11 +2,13 @@
 
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Check, CheckCheck } from "lucide-react";
 import type { Message } from "@/lib/types";
 
 export function MessageBubble({ message }: { message: Message }) {
   const isUser = message.sender_type === "user";
   const isSystem = message.sender_type === "system";
+  const isAgent = message.sender_type === "agent";
 
   if (isSystem) {
     return (
@@ -30,7 +32,7 @@ export function MessageBubble({ message }: { message: Message }) {
       >
         <div className="flex items-center gap-2 pb-1">
           <span className="text-xs font-medium opacity-70">
-            {message.sender_type}
+            {isAgent ? "agent" : message.sender_type}
           </span>
           {message.channel !== "web" && (
             <Badge variant="outline" className="h-4 px-1 text-[10px]">
@@ -39,9 +41,14 @@ export function MessageBubble({ message }: { message: Message }) {
           )}
         </div>
         <p className="whitespace-pre-wrap text-sm">{message.content}</p>
-        <p className="mt-1 text-[10px] opacity-50">
-          {new Date(message.created_at).toLocaleTimeString()}
-        </p>
+        <div className="mt-1 flex items-center justify-end gap-1">
+          <span className="text-[10px] opacity-50">
+            {new Date(message.created_at).toLocaleTimeString()}
+          </span>
+          {isUser && (
+            <CheckCheck className="h-3 w-3 opacity-50" />
+          )}
+        </div>
       </div>
     </div>
   );
