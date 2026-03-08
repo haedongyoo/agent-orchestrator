@@ -8,7 +8,37 @@ Update this file at the end of every meaningful dev session.
 - [ ] Test end-to-end chat with Gemini 2.5 Flash once Google quota activates
 - [ ] WebSocket push for agent responses (currently polling every 3s as fallback)
 - [ ] Observability: step-level trace UI (`GET /api/tasks/{id}/trace`)
-- [ ] Email OAuth (Gmail/Graph) — Phase 2 remaining item
+- [x] Email OAuth (Gmail/Graph) — Gmail + Microsoft Graph XOAUTH2
+
+---
+
+## 2026-03-07 (Session 14) — Email OAuth, Observability Trace, WebSocket Push
+
+### What Was Done
+
+**Email OAuth (Gmail/Graph)** (feat/email-oauth):
+- `services/email_oauth.py`: OAuth2 flows — authorization URL builder, code exchange, token refresh, credential packaging
+- `routers/email_oauth.py`: `GET /api/email-oauth/{provider}/authorize` (302 to consent page), `GET /api/email-oauth/{provider}/callback` (exchange + store)
+- Email connector updated: XOAUTH2 for SMTP/IMAP when `auth_type=oauth2` in credentials
+- State tokens use signed JWT (same pattern as SSO) with workspace_id encoding
+- Tokens stored as Fernet-encrypted JSON in `SharedEmailAccount.credentials_ref`
+- 15 new tests in `test_email_oauth.py` (174 total passing)
+
+**Observability: Step-Level Trace** (feat/observability-trace):
+- `GET /api/tasks/{id}/trace` — complete execution timeline: task, steps (with agent names, durations), audit logs
+- Steps joined with Agent for name display; duration_ms computed from created_at→updated_at delta
+- 6 new tests in `test_trace.py`
+
+**WebSocket Push via Redis Pub/Sub** (feat/websocket-push):
+- `services/pubsub.py` — Redis pub/sub bridge between Celery workers and FastAPI WebSocket
+- `step_results.py` broadcasts `new_message` + `task_status` events after DB commit
+- Removed 3s polling from `chat-view.tsx` — WebSocket is now primary delivery
+- 5 new tests in `test_step_results.py`
+
+### Decisions
+- Reuse same Google/Microsoft OAuth credentials for both SSO login and email OAuth
+- XOAUTH2 auth string follows RFC standard: `user={email}\x01auth=Bearer {token}\x01\x01`
+- Token refresh will be triggered at send/poll time if token expires within 5 minutes
 
 ---
 
