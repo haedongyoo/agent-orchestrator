@@ -3,6 +3,13 @@
 Chronological record of development progress, decisions, and next steps.
 Update this file at the end of every meaningful dev session.
 
+## Follow-Up Items (carry across sessions)
+
+- [ ] Test end-to-end chat with Gemini 2.5 Flash once Google quota activates
+- [ ] WebSocket push for agent responses (currently polling every 3s as fallback)
+- [ ] Observability: step-level trace UI (`GET /api/tasks/{id}/trace`)
+- [ ] Email OAuth (Gmail/Graph) — Phase 2 remaining item
+
 ---
 
 ## 2026-03-07 (Session 13) — Agent Result Pipeline, Chat UX, Config Fixes
