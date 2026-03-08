@@ -6,9 +6,24 @@ Update this file at the end of every meaningful dev session.
 ## Follow-Up Items (carry across sessions)
 
 - [ ] Test end-to-end chat with Gemini 2.5 Flash once Google quota activates
-- [ ] WebSocket push for agent responses (currently polling every 3s as fallback)
+- [x] WebSocket push for agent responses (Redis pub/sub bridge)
 - [ ] Observability: step-level trace UI (`GET /api/tasks/{id}/trace`)
 - [ ] Email OAuth (Gmail/Graph) — Phase 2 remaining item
+
+---
+
+## 2026-03-07 (Session 14) — WebSocket Push, Observability Trace, Email OAuth
+
+### What Was Done
+
+**WebSocket Push via Redis Pub/Sub** (feat/websocket-push):
+- Created `services/pubsub.py` — Redis pub/sub bridge between Celery workers and FastAPI WebSocket
+- `publish_event()`: sync publisher for Celery tasks, publishes to `ws:thread:{thread_id}` channels
+- `subscribe_and_broadcast()`: async subscriber runs as FastAPI background task, forwards events to WebSocket clients
+- Updated `step_results.py`: broadcasts `new_message` and `task_status` events after DB commit
+- Updated `main.py` lifespan: starts pub/sub subscriber on startup, cancels on shutdown
+- Removed 3s polling from `chat-view.tsx` — WebSocket is now the primary message delivery mechanism
+- 5 new tests in `test_step_results.py` (164 total passing)
 
 ---
 

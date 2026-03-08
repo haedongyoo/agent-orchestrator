@@ -20,14 +20,12 @@ export function ChatView({ threadId, disabled = false }: ChatViewProps) {
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
-    refetch,
   } = useMessages(threadId);
   const postMessage = usePostMessage(threadId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [waitingForAgent, setWaitingForAgent] = useState(false);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Connect WebSocket for real-time updates
+  // Connect WebSocket for real-time updates (primary message delivery)
   useWebSocket(threadId);
 
   // Auto-scroll to bottom on new messages
@@ -35,25 +33,6 @@ export function ChatView({ threadId, disabled = false }: ChatViewProps) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [allMessages.length]);
-
-  // When waiting for agent, poll every 3 seconds for new messages
-  useEffect(() => {
-    if (waitingForAgent) {
-      pollIntervalRef.current = setInterval(() => {
-        refetch();
-      }, 3000);
-    } else {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-    }
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, [waitingForAgent, refetch]);
 
   // Detect when an agent message arrives → stop waiting
   useEffect(() => {
