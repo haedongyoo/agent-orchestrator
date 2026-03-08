@@ -29,6 +29,7 @@ from app.models.task import Task, TaskStep
 from app.models.thread import Thread
 from app.models.workspace import User, Workspace
 from app.models.agent import Agent
+from app.models.audit import AuditLog
 from app.services.auth import get_current_user
 from app.services.orchestrator.planner import Planner
 from app.services.orchestrator.router import OrchestratorRouter
@@ -63,6 +64,41 @@ class TaskStepResponse(BaseModel):
     result: Optional[dict]
 
     model_config = {"from_attributes": True}
+
+
+class TraceStepResponse(BaseModel):
+    id: uuid.UUID
+    agent_id: uuid.UUID
+    agent_name: str
+    step_type: str
+    status: str
+    tool_call: Optional[dict]
+    result: Optional[dict]
+    created_at: datetime
+    updated_at: datetime
+    duration_ms: Optional[int]
+
+    model_config = {"from_attributes": True}
+
+
+class TraceAuditEntry(BaseModel):
+    id: uuid.UUID
+    actor_type: str
+    actor_id: Optional[uuid.UUID]
+    action: str
+    target_type: Optional[str]
+    target_id: Optional[uuid.UUID]
+    detail: dict
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TraceResponse(BaseModel):
+    task: TaskResponse
+    steps: List[TraceStepResponse]
+    audit_logs: List[TraceAuditEntry]
+    total_duration_ms: Optional[int]
 
 
 # ── Ownership helpers ──────────────────────────────────────────────────────────
@@ -226,3 +262,77 @@ async def cancel_task(
     )
 
     await db.commit()
+
+
+@router.get("/tasks/{task_id}/trace", response_model=TraceResponse)
+async def get_task_trace(
+    task_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TraceResponse:
+    """
+    Step-level execution trace for a task.
+
+    Returns the task, all steps with agent names and durations, and
+    related audit logs — ordered chronologically for debugging.
+    """
+    task = await _get_task_verified(task_id, current_user, db)
+
+    # Load steps with agent names
+    steps_result = await db.execute(
+        select(TaskStep, Agent.name)
+        .join(Agent, TaskStep.agent_id == Agent.id)
+        .where(TaskStep.task_id == task.id)
+        .order_by(TaskStep.created_at)
+    )
+    rows = steps_result.all()
+
+    trace_steps = []
+    for step, agent_name in rows:
+        duration_ms = None
+        if step.created_at and step.updated_at and step.status in ("done", "failed"):
+            delta = step.updated_at - step.created_at
+            duration_ms = int(delta.total_seconds() * 1000)
+
+        trace_steps.append(TraceStepResponse(
+            id=step.id,
+            agent_id=step.agent_id,
+            agent_name=agent_name,
+            step_type=step.step_type,
+            status=step.status,
+            tool_call=step.tool_call,
+            result=step.result,
+            created_at=step.created_at,
+            updated_at=step.updated_at,
+            duration_ms=duration_ms,
+        ))
+
+    # Load related audit logs
+    audit_result = await db.execute(
+        select(AuditLog)
+        .where(
+            AuditLog.workspace_id == task.workspace_id,
+            AuditLog.target_type == "task",
+            AuditLog.target_id == task.id,
+        )
+        .order_by(AuditLog.created_at)
+    )
+    audit_logs = [
+        TraceAuditEntry.model_validate(a)
+        for a in audit_result.scalars().all()
+    ]
+
+    # Total duration from task creation to last step completion
+    total_duration_ms = None
+    if trace_steps and task.status in ("done", "failed"):
+        last_step = trace_steps[-1]
+        if last_step.updated_at and task.created_at:
+            delta = last_step.updated_at - task.created_at
+            total_duration_ms = int(delta.total_seconds() * 1000)
+
+    return TraceResponse(
+        task=TaskResponse.model_validate(task),
+        steps=trace_steps,
+        audit_logs=audit_logs,
+        total_duration_ms=total_duration_ms,
+    )
