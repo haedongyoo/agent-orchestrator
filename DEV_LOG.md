@@ -5,6 +5,90 @@ Update this file at the end of every meaningful dev session.
 
 ---
 
+## 2026-03-07 (Session 13) — Agent Result Pipeline, Chat UX, Config Fixes
+
+### What Was Done
+
+**Agent Result Pipeline (critical fix)**:
+- Agent was completing tasks but never posting results back to orchestrator — responses were silently dropped
+- Fixed `agent_runtime/main.py`: now calls `send_task("handle_step_result")` to orchestrator queue after step completion
+- Fixed `step_results.py`: creates a `Message` in the thread from agent output so users see responses in chat
+- Handles truncated responses (max iterations hit) with fallback messages: "[Agent reached maximum iterations...]"
+- Handles error responses: "[Agent error: ...]"
+- On failure, posts error result to orchestrator before retrying
+
+**Rate Limit Retry Hardening** (`runner.py`):
+- Reduced retry ceiling from 2 hours → 2 minutes / max 5 retries — agents no longer block workers for hours on 429s
+- `DEFAULT_RETRY_AFTER` reduced from 60s → 10s
+- `AuthenticationError` now raises immediately (no retries on bad API keys)
+- Truncated agentic loops now extract last assistant text instead of returning empty string
+
+**Chat Message Indicators** (`chat-view.tsx`, `message-bubble.tsx`):
+- "Sending..." spinner while message is being posted to API
+- "Agent is thinking..." bouncing dots animation while waiting for agent response
+- Double check marks on all delivered user messages
+- Auto-polls every 3 seconds while waiting for agent response (fallback for WebSocket)
+- Thinking indicator auto-dismisses when agent message arrives
+
+**Container Status Reactivity** (`container-status.tsx`):
+- Optimistic updates: Start → instantly shows "Starting...", Stop → instantly shows "Stopping..."
+- Spinner animation replaces static dot during transitional states
+- Fast polling (2s) during starting/stopping/created states, normal 10s otherwise
+- Reverts to real status on API failure
+
+**LLM Config Provider Fix** (`llm-config-panel.tsx`):
+- Fixed provider/model prefix mismatch: Gemini models use `gemini/` prefix but provider dropdown ID is `google`
+- Added prefix-to-provider mapping (`gemini` → `google`, `gpt` → `openai`, etc.)
+- Config now displays correctly on page reload
+
+**Telegram Token Visibility** (`agents.py`, `agent-form.tsx`, `types.ts`):
+- Added `has_telegram_token: bool` to `AgentResponse` (token itself remains write-only)
+- Agent form shows green "Token set" badge when a token is already configured
+- Placeholder text adapts based on whether token exists
+
+**Model Registry Updates** (`llm_registry.py`):
+- Added `gemini/gemini-2.5-flash` (Gemini 2.5 Flash) — recommended for Google provider
+- Added `ollama/llama3.2` (user had it installed but it wasn't in the dropdown)
+
+### Infrastructure Issues Resolved
+
+- Gemini free tier quota exhaustion (`limit: 0` during billing transition)
+- Agent containers need restart after LLM config change (env vars set at spawn time)
+- llama3.2 (3B) too small for agentic tool-use — stuck in translate_message loop for 10 iterations
+
+### Key Decisions
+
+- Rate limit retries should fail fast (2 min ceiling) rather than block workers — users get error feedback quickly
+- Agent responses saved as Messages even when truncated/failed — user always sees feedback
+- Container status uses optimistic updates + fast polling rather than WebSocket (simpler, works reliably)
+- LLM provider detection uses a prefix mapping table rather than assuming model prefix == provider ID
+
+### Files Changed (12 files, +298 -113)
+
+| File | Change |
+|---|---|
+| `apps/agent/agent_runtime/main.py` | Post results to orchestrator queue |
+| `apps/agent/agent_runtime/runner.py` | Rate limit hardening, truncation fix, auth fail-fast |
+| `apps/api/app/tasks/step_results.py` | Create Message in thread from agent output |
+| `apps/api/app/routers/agents.py` | `has_telegram_token` in AgentResponse |
+| `apps/api/app/services/llm_registry.py` | Gemini 2.5 Flash, Ollama Llama 3.2 |
+| `apps/web/src/components/threads/chat-view.tsx` | Sending/thinking indicators, auto-poll |
+| `apps/web/src/components/threads/message-bubble.tsx` | Delivery check marks |
+| `apps/web/src/components/agents/container-status.tsx` | Optimistic updates, fast polling, spinners |
+| `apps/web/src/components/agents/llm-config-panel.tsx` | Provider prefix mapping fix |
+| `apps/web/src/components/agents/agent-form.tsx` | Telegram token badge |
+| `apps/web/src/lib/types.ts` | `has_telegram_token` field |
+| `CLAUDE.md` | Doc sync |
+
+### What's Next
+
+- Test end-to-end with Gemini 2.5 Flash (pending quota activation)
+- WebSocket integration for real-time agent responses (currently polling)
+- Observability: step-level trace UI (`GET /api/tasks/{id}/trace`)
+- Email OAuth (Gmail/Graph) — Phase 2 remaining item
+
+---
+
 ## 2026-03-05 (Session 12) — Phase 5: End-to-End Agent Communication
 
 ### What Was Done
