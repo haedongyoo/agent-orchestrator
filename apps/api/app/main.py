@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -6,6 +8,7 @@ from app.config import settings
 from app.db.session import engine, Base
 from app.routers import auth, workspaces, agents, threads, tasks, approvals, llm_configs, role_templates, vendors
 from app.services.connectors import telegram, webchat
+from app.services.pubsub import subscribe_and_broadcast
 
 
 @asynccontextmanager
@@ -13,8 +16,18 @@ async def lifespan(app: FastAPI):
     # Startup
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Start Redis pub/sub → WebSocket bridge as background task
+    pubsub_task = asyncio.create_task(subscribe_and_broadcast())
+
     yield
+
     # Shutdown
+    pubsub_task.cancel()
+    try:
+        await pubsub_task
+    except asyncio.CancelledError:
+        pass
     await engine.dispose()
 
 

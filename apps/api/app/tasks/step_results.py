@@ -6,7 +6,7 @@ completing a task step. This module handles those results:
   1. Persist result to task_steps DB row
   2. Update task status based on all steps' combined state
   3. Dispatch follow-up steps via planner (TODO: V1 — LLM-based next step)
-  4. Broadcast WebSocket event to UI (TODO: V1)
+  4. Broadcast WebSocket event to UI via Redis pub/sub
 
 StepResult payload keys: step_id, task_id, agent_id, success, output, error
 """
@@ -14,9 +14,12 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from datetime import datetime, timezone
+
 import structlog
 
 from app.worker import celery_app
+from app.services.pubsub import publish_event
 
 log = structlog.get_logger()
 
@@ -84,6 +87,8 @@ async def _handle(result: dict) -> None:
             )
 
         # Save agent's response as a Message in the thread
+        agent_text = ""
+        agent_msg = None
         if task and task.thread_id:
             output = result.get("output", {})
             agent_text = output.get("text", "")
@@ -117,3 +122,28 @@ async def _handle(result: dict) -> None:
 
         await db.commit()
         log.info("step_results.persisted", step_id=result["step_id"], status=step.status)
+
+        # Broadcast events to WebSocket clients via Redis pub/sub
+        if task and task.thread_id:
+            if agent_text and agent_msg:
+                created_at = agent_msg.created_at or datetime.now(timezone.utc)
+                publish_event(task.thread_id, {
+                    "type": "new_message",
+                    "data": {
+                        "id": str(agent_msg.id),
+                        "thread_id": str(task.thread_id),
+                        "sender_type": "agent",
+                        "sender_id": str(step.agent_id),
+                        "channel": "web",
+                        "content": agent_text,
+                        "created_at": created_at.isoformat(),
+                    },
+                })
+            if all_terminal:
+                publish_event(task.thread_id, {
+                    "type": "task_status",
+                    "data": {
+                        "task_id": str(task.id),
+                        "status": task.status,
+                    },
+                })
