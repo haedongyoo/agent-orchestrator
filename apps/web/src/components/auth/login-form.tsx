@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,8 @@ import { ApiError } from "@/lib/api-client";
 
 export function LoginForm() {
   const { login } = useAuth();
+  const searchParams = useSearchParams();
+  const justRegistered = searchParams.get("registered") === "true";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -39,6 +42,11 @@ export function LoginForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {justRegistered && (
+            <div className="rounded-md bg-green-500/10 p-3 text-sm text-green-600">
+              Account created successfully. Please sign in.
+            </div>
+          )}
           {error && (
             <div className="rounded-md bg-[var(--destructive)]/10 p-3 text-sm text-[var(--destructive)]">
               {error}

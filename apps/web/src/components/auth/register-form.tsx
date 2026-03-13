@@ -2,17 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useAuth } from "@/providers/auth-provider";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { SsoButtons } from "./sso-buttons";
 import { Separator } from "@/components/ui/separator";
-import { ApiError } from "@/lib/api-client";
+import { api, ApiError } from "@/lib/api-client";
 
 export function RegisterForm() {
-  const { register } = useAuth();
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -30,7 +30,8 @@ export function RegisterForm() {
 
     setLoading(true);
     try {
-      await register(email, password);
+      await api.post("/api/auth/register", { email, password });
+      router.push("/login?registered=true");
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Registration failed");
     } finally {
