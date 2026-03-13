@@ -140,7 +140,8 @@ class TestDoSchedule:
         mock_db.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("app.db.session.AsyncSessionLocal", return_value=mock_db):
+        mock_factory = MagicMock(return_value=MagicMock(return_value=mock_db))
+        with patch("app.db.session.make_session_factory", mock_factory):
             result = await _do_schedule({
                 "workspace_id": ws_id,
                 "thread_id":    thr_id,
@@ -172,8 +173,9 @@ class TestDoSchedule:
         mock_scheduler = AsyncMock()
         mock_scheduler.schedule_followup = AsyncMock(return_value="sched-id-xyz")
 
+        mock_factory = MagicMock(return_value=MagicMock(return_value=mock_db))
         with (
-            patch("app.db.session.AsyncSessionLocal", return_value=mock_db),
+            patch("app.db.session.make_session_factory", mock_factory),
             patch("app.services.orchestrator.scheduler.Scheduler", return_value=mock_scheduler),
         ):
             result = await _do_schedule({
@@ -208,7 +210,8 @@ class TestDispatchFollowup:
         mock_db.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("app.db.session.AsyncSessionLocal", return_value=mock_db):
+        mock_factory = MagicMock(return_value=MagicMock(return_value=mock_db))
+        with patch("app.db.session.make_session_factory", mock_factory):
             await _dispatch_followup(task_id, agent_id, workspace_id, thread_id, "Follow up")
 
         mock_db.add.assert_not_called()
@@ -235,8 +238,9 @@ class TestDispatchFollowup:
         mock_db.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db.__aexit__ = AsyncMock(return_value=None)
 
+        mock_factory = MagicMock(return_value=MagicMock(return_value=mock_db))
         with (
-            patch("app.db.session.AsyncSessionLocal", return_value=mock_db),
+            patch("app.db.session.make_session_factory", mock_factory),
             patch("app.services.orchestrator.router.OrchestratorRouter", return_value=mock_orch),
         ):
             await _dispatch_followup(task_id, agent_id, workspace_id, thread_id, "Follow up now")
