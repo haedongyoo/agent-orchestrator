@@ -1,0 +1,42 @@
+# OpenClaw Agent Orchestrator — Caddy reverse proxy
+#
+# Routes:
+#   /api/*    -> FastAPI backend
+#   /ws/*     -> WebSocket backend
+#   /health   -> FastAPI health check
+#   /*        -> Next.js frontend
+#
+# TLS:
+#   With IP only: Caddy serves HTTP on :80.
+#   When you get a domain: replace ":80" with "yourdomain.com"
+#   and Caddy will auto-provision Let's Encrypt TLS certificates.
+
+:80 {
+	# API routes -> FastAPI
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	# WebSocket -> FastAPI
+	handle /ws/* {
+		reverse_proxy api:8000
+	}
+
+	# Health check -> FastAPI
+	handle /health {
+		reverse_proxy api:8000
+	}
+
+	# OpenAPI docs -> FastAPI
+	handle /docs {
+		reverse_proxy api:8000
+	}
+	handle /openapi.json {
+		reverse_proxy api:8000
+	}
+
+	# Everything else -> Next.js
+	handle {
+		reverse_proxy web:3000
+	}
+}
