@@ -96,7 +96,7 @@ dev-web:  ## Run web UI locally (not in Docker — uses npm run dev)
 # ── Production ─────────────────────────────────────────────────────────────────
 
 prod-build:  ## Build production images (including agent runtime)
-	docker compose -f docker-compose.prod.yml --profile agent-dev build
+	docker compose -f docker-compose.prod.yml --profile agent-dev build --parallel
 
 prod-up:  ## Start production stack (detached)
 	docker compose -f docker-compose.prod.yml up -d
@@ -107,11 +107,23 @@ prod-down:  ## Stop production stack
 prod-migrate:  ## Run Alembic migrations against production DB
 	docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
 
-prod-logs:  ## Tail production API + worker + web logs
-	docker compose -f docker-compose.prod.yml logs -f api orchestrator-worker orchestrator-beat web
+prod-logs:  ## Tail all production logs
+	docker compose -f docker-compose.prod.yml logs -f
+
+prod-logs-api:  ## Tail production API + worker logs
+	docker compose -f docker-compose.prod.yml logs -f api orchestrator-worker orchestrator-beat
 
 prod-logs-web:  ## Tail production web UI logs
 	docker compose -f docker-compose.prod.yml logs -f web
+
+prod-logs-caddy:  ## Tail Caddy reverse proxy logs
+	docker compose -f docker-compose.prod.yml logs -f caddy
+
+prod-ps:  ## Show production container status
+	docker compose -f docker-compose.prod.yml ps
+
+prod-deploy:  ## Full deploy: build + restart + migrate
+	bash deploy/deploy.sh
 
 # ── Cleanup ────────────────────────────────────────────────────────────────────
 
