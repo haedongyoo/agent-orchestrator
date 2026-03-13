@@ -36,7 +36,7 @@ export function Sidebar() {
         <Link href="/dashboard" className="flex items-center gap-2" onClick={() => setMobileOpen(false)}>
           <Bot className="h-6 w-6 text-[var(--sidebar-primary)]" />
           <span className="text-lg font-bold text-[var(--sidebar-primary)]">
-            OpenClaw
+            Agent Orchestrator
           </span>
         </Link>
         <Button
