@@ -7,7 +7,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "OpenClaw Agents",
+  title: "Agent Orchestrator",
   description: "AI Agent Orchestration — always-on employees for negotiation, sourcing, and workflow automation",
 };
 

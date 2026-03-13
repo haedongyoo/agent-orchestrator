@@ -116,9 +116,6 @@ prod-logs-api:  ## Tail production API + worker logs
 prod-logs-web:  ## Tail production web UI logs
 	docker compose -f docker-compose.prod.yml logs -f web
 
-prod-logs-caddy:  ## Tail Caddy reverse proxy logs
-	docker compose -f docker-compose.prod.yml logs -f caddy
-
 prod-ps:  ## Show production container status
 	docker compose -f docker-compose.prod.yml ps
 

@@ -42,7 +42,7 @@ export function RegisterForm() {
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">Create account</CardTitle>
-        <CardDescription>Sign up to start using OpenClaw Agents</CardDescription>
+        <CardDescription>Sign up to start using Agent Orchestrator</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
